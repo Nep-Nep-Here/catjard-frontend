@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: #1A0F05;
+  color: #FFF5E1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: #C48B28; color: #1A0F05; }
+
+.font-display { font-family: 'Fraunces', serif; }
+.font-body { font-family: 'Inter', sans-serif; }
+
+/* Halftone amber dot pattern */
+.halftone {
+  background-image: radial-gradient(rgba(196, 139, 40, 0.45) 1px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+
+/* Sound wave ripple (button hover) */
+@keyframes ripple {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.55; }
+  80%  { opacity: 0.08; }
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
+.ripple {
+  position: absolute;
+  border-radius: 9999px;
+  border: 2px solid #EBC176;
+  pointer-events: none;
+  width: 40px;
+  height: 40px;
+  left: var(--rx, 50%);
+  top: var(--ry, 50%);
+  animation: ripple 800ms ease-out forwards;
+}
+
+/* Title soundwave reveal — concentric arcs that fade in/out behind a title */
+@keyframes titleWaveIn {
+  0%   { transform: scale(0.3); opacity: 0; }
+  40%  { opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.title-wave > span {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  inset: 50% auto auto 50%;
+  width: 220px; height: 220px;
+  margin-left: -110px; margin-top: -110px;
+  opacity: 0;
+  transform-origin: center;
+}
+.title-wave.run > span:nth-child(1) { animation: titleWaveIn 900ms ease-out forwards; }
+.title-wave.run > span:nth-child(2) { animation: titleWaveIn 900ms ease-out 120ms forwards; }
+.title-wave.run > span:nth-child(3) { animation: titleWaveIn 900ms ease-out 240ms forwards; }
+
+/* Scroll-reveal */
+.reveal { opacity: 0; transform: translateY(40px); transition: opacity 700ms ease-out, transform 700ms ease-out; }
+.reveal.in { opacity: 1; transform: none; }
+.reveal-left { opacity: 0; transform: translateX(-30px); transition: opacity 600ms ease-out, transform 600ms ease-out; }
+.reveal-left.in { opacity: 1; transform: none; }
+
+/* Bobbing scroll indicator */
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+.bob { animation: bob 2.4s ease-in-out infinite; }
+
+/* Easter egg static wave pulse */
+@keyframes pulseWave {
+  0%, 75%, 100% { transform: scale(1); opacity: 0.35; }
+  85%           { transform: scale(1.25); opacity: 0.85; }
+}
+.ee-pulse { animation: pulseWave 4s ease-in-out infinite; }
+
+/* Underline anim for secondary CTA */
+.ul-anim { background-image: linear-gradient(#C48B28, #C48B28); background-size: 0% 1px; background-repeat: no-repeat; background-position: 0 100%; transition: background-size 400ms ease-out; }
+.ul-anim:hover { background-size: 100% 1px; }
+
+/* Chip hover glow */
+.chip { transition: transform 300ms ease-out, color 300ms, text-shadow 300ms; }
+.chip:hover { transform: scale(1.05); color: #EBC176; text-shadow: 0 0 28px rgba(196,139,40,0.55); }
+
+/* Hide scrollbar on horizontal timelines */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* Text balance for editorial paragraphs */
+.balance { text-wrap: balance; }
+.pretty  { text-wrap: pretty; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple, .ee-pulse, .bob, .title-wave > span { animation: none !important; }
+  .reveal, .reveal-left { opacity: 1 !important; transform: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
