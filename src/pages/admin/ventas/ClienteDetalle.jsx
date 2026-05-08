@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectClienteById,
+  selectClientesStatus,
+  fetchClientes,
   actualizarCliente,
 } from '../../../redux/slices/clientesSlice.js';
 import { selectCotizaciones } from '../../../redux/slices/cotizacionesSlice.js';
@@ -20,6 +22,7 @@ import AdminHeader, { Card, StatusBadge } from '../../../components/AdminHeader.
 export default function ClienteDetalle() {
   const { id } = useParams();
   const cliente = useSelector(selectClienteById(id));
+  const clientesStatus = useSelector(selectClientesStatus);
   const cotizaciones = useSelector(selectCotizaciones);
   const pedidos = useSelector(selectPedidos);
   const dispatch = useDispatch();
@@ -28,11 +31,15 @@ export default function ClienteDetalle() {
   const [form, setForm] = useState(cliente ?? {});
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    if (clientesStatus === 'idle') dispatch(fetchClientes());
+  }, [clientesStatus, dispatch]);
+
   if (!cliente) {
     return (
       <section>
         <AdminHeader
-          title="Cliente no encontrado"
+          title={clientesStatus === 'loading' ? 'Cargando…' : 'Cliente no encontrado'}
           backTo="/admin/ventas/clientes"
           backLabel="← Volver al CRM"
         />

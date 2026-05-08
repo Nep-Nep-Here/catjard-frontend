@@ -1,26 +1,66 @@
-import { createSlice } from '@reduxjs/toolkit';
-import { loadState, saveState } from '../../services/storage.js';
-import { SEED_MOVIMIENTOS, nuevoIdMovimiento } from '../../data/movimientos.js';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import {
+  listarMovimientos,
+  crearMovimientoApi,
+} from '../../services/movimientosService.js';
+import { fetchProductos } from './productosSlice.js';
 
-const STORAGE_KEY = 'catjard_movimientos';
+export const fetchMovimientos = createAsyncThunk(
+  'movimientos/fetch',
+  async (filtros, { rejectWithValue }) => {
+    try {
+      return await listarMovimientos(filtros);
+    } catch (e) {
+      return rejectWithValue(e.message);
+    }
+  },
+);
+
+export const registrarMovimiento = createAsyncThunk(
+  'movimientos/registrar',
+  async (payload, { rejectWithValue, dispatch }) => {
+    try {
+      const creado = await crearMovimientoApi(payload);
+      dispatch(fetchProductos());
+      return creado;
+    } catch (e) {
+      return rejectWithValue(e.message);
+    }
+  },
+);
 
 const initialState = {
-  list: loadState(STORAGE_KEY, SEED_MOVIMIENTOS),
+  list: [],
+  status: 'idle',
+  error: null,
 };
 
 const slice = createSlice({
   name: 'movimientos',
   initialState,
-  reducers: {
-    registrarMovimiento(state, action) {
-      const id = nuevoIdMovimiento(state.list);
-      state.list.unshift({ ...action.payload, id });
-      saveState(STORAGE_KEY, state.list);
-    },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMovimientos.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchMovimientos.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.list = action.payload;
+      })
+      .addCase(fetchMovimientos.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload ?? action.error.message;
+      })
+      .addCase(registrarMovimiento.fulfilled, (state, action) => {
+        state.list.unshift(action.payload);
+      });
   },
 });
 
-export const { registrarMovimiento } = slice.actions;
 export default slice.reducer;
 
 export const selectMovimientos = (state) => state.movimientos.list;
+export const selectMovimientosStatus = (state) => state.movimientos.status;
+export const selectMovimientosError = (state) => state.movimientos.error;

@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectMovimientos,
+  selectMovimientosStatus,
+  selectMovimientosError,
+  fetchMovimientos,
   registrarMovimiento,
 } from '../../../redux/slices/movimientosSlice.js';
-import {
-  selectProductos,
-  ajustarStock,
-} from '../../../redux/slices/productosSlice.js';
+import { selectProductos } from '../../../redux/slices/productosSlice.js';
 import { selectUser } from '../../../redux/slices/authSlice.js';
 import {
   TIPO_MOVIMIENTO,
@@ -36,6 +36,8 @@ const EMPTY = {
 
 export default function Movimientos() {
   const movimientos = useSelector(selectMovimientos);
+  const status = useSelector(selectMovimientosStatus);
+  const errorRemoto = useSelector(selectMovimientosError);
   const productos = useSelector(selectProductos);
   const user = useSelector(selectUser);
   const dispatch = useDispatch();
@@ -43,6 +45,10 @@ export default function Movimientos() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchMovimientos());
+  }, [status, dispatch]);
 
   const filtrados = useMemo(
     () => (filtro ? movimientos.filter((m) => m.tipo === filtro) : movimientos),
@@ -63,39 +69,31 @@ export default function Movimientos() {
     setForm((f) => ({ ...f, tipo, motivo }));
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     const productoId = parseInt(form.productoId, 10);
     if (!productoId) return setErr('Selecciona un producto.');
-    if (form.cantidad <= 0) return setErr('La cantidad debe ser mayor a 0.');
+    if (form.tipo !== 'ajuste' && form.cantidad <= 0)
+      return setErr('La cantidad debe ser mayor a 0.');
 
-    let delta;
-    let cantidadGuardada = form.cantidad;
-    if (form.tipo === 'entrada') delta = form.cantidad;
-    else if (form.tipo === 'salida') {
-      delta = -form.cantidad;
-    } else {
-      delta = form.cantidad;
-      cantidadGuardada = form.cantidad;
-    }
-
-    dispatch(ajustarStock({ id: productoId, delta }));
-    dispatch(
+    const action = await dispatch(
       registrarMovimiento({
-        fecha: new Date().toISOString().slice(0, 10),
         tipo: form.tipo,
         productoId,
-        cantidad: cantidadGuardada,
+        cantidad: form.cantidad,
         motivo: form.motivo,
-        referencia: form.referencia,
-        usuario: user?.nombre ?? '—',
-        notas: form.notas,
+        referencia: form.referencia || null,
+        usuario: user?.nombre ?? null,
+        notas: form.notas || null,
       }),
     );
-
-    setForm(EMPTY);
-    setShowForm(false);
+    if (action.meta.requestStatus === 'fulfilled') {
+      setForm(EMPTY);
+      setShowForm(false);
+    } else {
+      setErr(action.payload || 'No se pudo registrar el movimiento.');
+    }
   };
 
   return (
@@ -103,7 +101,13 @@ export default function Movimientos() {
       <AdminHeader
         eyebrow="Almacén"
         title="Movimientos"
-        subtitle={`${filtrados.length} de ${movimientos.length}`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${errorRemoto}`
+            : `${filtrados.length} de ${movimientos.length}`
+        }
         action={
           !showForm && (
             <button

@@ -1,7 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectLeads } from '../../../redux/slices/leadsSlice.js';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  selectLeads,
+  selectLeadsStatus,
+  selectLeadsError,
+  fetchLeads,
+} from '../../../redux/slices/leadsSlice.js';
 import { ESTADO_LEAD_LABEL, ESTADO_LEAD_COLOR } from '../../../data/leads.js';
 import AdminHeader, { StatusBadge, EmptyState } from '../../../components/AdminHeader.jsx';
 
@@ -15,7 +20,14 @@ const FILTROS = [
 
 export default function Leads() {
   const leads = useSelector(selectLeads);
+  const status = useSelector(selectLeadsStatus);
+  const error = useSelector(selectLeadsError);
+  const dispatch = useDispatch();
   const [filtro, setFiltro] = useState('');
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchLeads());
+  }, [status, dispatch]);
 
   const filtrados = useMemo(
     () => (filtro ? leads.filter((l) => l.estado === filtro) : leads),
@@ -27,7 +39,13 @@ export default function Leads() {
       <AdminHeader
         eyebrow="Bandeja"
         title="Leads"
-        subtitle={`${filtrados.length} de ${leads.length}`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${error}`
+            : `${filtrados.length} de ${leads.length}`
+        }
       />
 
       <div className="mt-8 flex flex-wrap gap-2">

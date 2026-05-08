@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import ProductImage from './ProductImage.jsx';
 import { getCategoria } from '../data/products.js';
+import { selectPromociones } from '../redux/slices/promocionesSlice.js';
+import { calcularPrecio } from '../utils/promociones.js';
 
 export default function ProductCard({ producto }) {
   const categoria = getCategoria(producto.categoria);
   const stockBajo = producto.stock <= producto.stockMinimo;
+  const promociones = useSelector(selectPromociones);
+  const { precioBase, precioFinal, descuentoPct } = calcularPrecio(producto, promociones);
+  const tienePromo = descuentoPct > 0;
 
   return (
     <Link
@@ -17,15 +23,27 @@ export default function ProductCard({ producto }) {
           <h3 className="font-display font-bold text-cream text-[20px] leading-tight group-hover:text-amber-light transition-colors">
             {producto.nombre}
           </h3>
+          {tienePromo && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-300 border border-green-500/30">
+              -{descuentoPct}%
+            </span>
+          )}
         </div>
         <p className="mt-1 text-amber-light/65 text-[12px] tracking-widest uppercase">
           {categoria?.label}
         </p>
         <div className="mt-4 flex items-center justify-between">
           <div>
-            <p className="font-display font-bold text-amber text-[22px] leading-none">
-              S/ {producto.precio.toFixed(2)}
-            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="font-display font-bold text-amber text-[22px] leading-none">
+                S/ {precioFinal.toFixed(2)}
+              </p>
+              {tienePromo && (
+                <p className="text-cream/45 text-[13px] line-through">
+                  S/ {precioBase.toFixed(2)}
+                </p>
+              )}
+            </div>
             <p className="text-cream/55 text-[11px] mt-1">desde 50 unidades</p>
           </div>
           <span

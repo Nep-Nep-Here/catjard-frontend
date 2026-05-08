@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectPromociones,
+  selectPromocionesStatus,
+  selectPromocionesError,
+  fetchPromociones,
   crearPromocion,
   actualizarPromocion,
   togglePromocion,
@@ -24,11 +27,17 @@ const EMPTY = {
 
 export default function Promociones() {
   const promociones = useSelector(selectPromociones);
+  const status = useSelector(selectPromocionesStatus);
+  const error = useSelector(selectPromocionesError);
   const productos = useSelector(selectProductos);
   const dispatch = useDispatch();
 
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(EMPTY);
+
+  useEffect(() => {
+    dispatch(fetchPromociones());
+  }, [dispatch]);
 
   const startNew = () => {
     setForm(EMPTY);
@@ -65,14 +74,17 @@ export default function Promociones() {
     }));
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    if (editando === 'new') {
-      dispatch(crearPromocion(form));
+    const action =
+      editando === 'new'
+        ? await dispatch(crearPromocion(form))
+        : await dispatch(actualizarPromocion(form));
+    if (action.meta.requestStatus === 'fulfilled') {
+      setEditando(null);
     } else {
-      dispatch(actualizarPromocion(form));
+      alert(action.payload || 'No se pudo guardar la promoción');
     }
-    setEditando(null);
   };
 
   return (
@@ -80,7 +92,13 @@ export default function Promociones() {
       <AdminHeader
         eyebrow="Campañas"
         title="Promociones"
-        subtitle={`${promociones.length} configuradas`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${error}`
+            : `${promociones.length} configuradas`
+        }
         action={
           editando == null && (
             <button

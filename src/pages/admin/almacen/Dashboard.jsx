@@ -1,8 +1,17 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { selectProductos } from '../../../redux/slices/productosSlice.js';
-import { selectMovimientos } from '../../../redux/slices/movimientosSlice.js';
-import { selectOrdenesCompra } from '../../../redux/slices/ordenesCompraSlice.js';
+import {
+  selectMovimientos,
+  selectMovimientosStatus,
+  fetchMovimientos,
+} from '../../../redux/slices/movimientosSlice.js';
+import {
+  selectOrdenesCompra,
+  selectOCStatus,
+  fetchOC,
+} from '../../../redux/slices/ordenesCompraSlice.js';
 import { selectPedidos } from '../../../redux/slices/pedidosSlice.js';
 import {
   TIPO_MOVIMIENTO_LABEL,
@@ -17,8 +26,18 @@ import AdminHeader, { Card, KpiCard, StatusBadge } from '../../../components/Adm
 export default function AlmacenDashboard() {
   const productos = useSelector(selectProductos);
   const movimientos = useSelector(selectMovimientos);
+  const movimientosStatus = useSelector(selectMovimientosStatus);
   const ordenesCompra = useSelector(selectOrdenesCompra);
+  const ocStatus = useSelector(selectOCStatus);
   const pedidos = useSelector(selectPedidos);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (movimientosStatus === 'idle') dispatch(fetchMovimientos());
+  }, [movimientosStatus, dispatch]);
+  useEffect(() => {
+    if (ocStatus === 'idle') dispatch(fetchOC());
+  }, [ocStatus, dispatch]);
 
   const stockCritico = productos.filter((p) => p.stock <= p.stockMinimo);
   const ocPendientes = ordenesCompra.filter((o) => ['borrador', 'enviada'].includes(o.estado));
@@ -120,7 +139,7 @@ export default function AlmacenDashboard() {
                 <li key={o.id}>
                   <Link to={`/admin/almacen/ordenes/${o.id}`} className="flex items-center justify-between py-3 group">
                     <div>
-                      <p className="font-mono text-cream text-[13px]">{o.id}</p>
+                      <p className="font-mono text-cream text-[13px]">{o.codigo ?? o.id}</p>
                       <p className="text-amber-light/60 text-[11px]">{o.proveedorNombre}</p>
                     </div>
                     <div className="text-right">

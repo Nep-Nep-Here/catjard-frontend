@@ -1,7 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectProveedores,
+  selectProveedoresStatus,
+  selectProveedoresError,
+  fetchProveedores,
   crearProveedor,
   actualizarProveedor,
   toggleProveedor,
@@ -25,12 +28,18 @@ const EMPTY = {
 
 export default function Proveedores() {
   const proveedores = useSelector(selectProveedores);
+  const status = useSelector(selectProveedoresStatus);
+  const errorRemoto = useSelector(selectProveedoresError);
   const dispatch = useDispatch();
   const [search, setSearch] = useState('');
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [err, setErr] = useState(null);
   const [confirmando, setConfirmando] = useState(null);
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchProveedores());
+  }, [status, dispatch]);
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -60,19 +69,25 @@ export default function Proveedores() {
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     if (!form.razonSocial || !form.ruc) return setErr('Razón social y RUC son obligatorios.');
     if (form.ruc.length !== 11) return setErr('El RUC debe tener 11 dígitos.');
-    if (editando === 'new') dispatch(crearProveedor(form));
-    else dispatch(actualizarProveedor(form));
-    setEditando(null);
+    const action =
+      editando === 'new'
+        ? await dispatch(crearProveedor(form))
+        : await dispatch(actualizarProveedor(form));
+    if (action.meta.requestStatus === 'fulfilled') setEditando(null);
+    else setErr(action.payload || 'No se pudo guardar el proveedor.');
   };
 
-  const onDelete = (id) => {
-    dispatch(eliminarProveedor(id));
+  const onDelete = async (id) => {
+    const action = await dispatch(eliminarProveedor(id));
     setConfirmando(null);
+    if (action.meta.requestStatus !== 'fulfilled') {
+      alert(action.payload || 'No se pudo eliminar.');
+    }
   };
 
   return (
@@ -80,7 +95,13 @@ export default function Proveedores() {
       <AdminHeader
         eyebrow="Almacén"
         title="Proveedores"
-        subtitle={`${filtrados.length} de ${proveedores.length}`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${errorRemoto}`
+            : `${filtrados.length} de ${proveedores.length}`
+        }
         action={
           editando == null && (
             <button

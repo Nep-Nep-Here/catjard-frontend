@@ -105,7 +105,6 @@ export default function AppRouter() {
             <Route path="/admin/almacen/movimientos" element={<Movimientos />} />
             <Route path="/admin/almacen/proveedores" element={<Proveedores />} />
             <Route path="/admin/almacen/ordenes" element={<OrdenesCompra />} />
-            <Route path="/admin/almacen/ordenes/nueva" element={<OrdenCompraEditar />} />
             <Route path="/admin/almacen/ordenes/:id" element={<OrdenCompraEditar />} />
             <Route path="/admin/almacen/despachos" element={<Despachos />} />
             <Route path="/admin/almacen/catalogo" element={<CatalogoAdmin />} />

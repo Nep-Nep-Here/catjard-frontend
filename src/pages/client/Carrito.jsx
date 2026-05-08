@@ -17,6 +17,8 @@ import { crearCotizacion } from '../../redux/slices/cotizacionesSlice.js';
 import { selectUser } from '../../redux/slices/authSlice.js';
 import { getPrecioVolumen } from '../../data/products.js';
 import { selectProductos } from '../../redux/slices/productosSlice.js';
+import { selectPromociones } from '../../redux/slices/promocionesSlice.js';
+import { mejorPromocion } from '../../utils/promociones.js';
 import { calcularTotales } from '../../data/cotizaciones.js';
 
 export default function Carrito() {
@@ -25,6 +27,7 @@ export default function Carrito() {
   const logoNombre = useSelector(selectCartLogoNombre);
   const user = useSelector(selectUser);
   const productos = useSelector(selectProductos);
+  const promociones = useSelector(selectPromociones);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [enviando, setEnviando] = useState(false);
@@ -34,10 +37,21 @@ export default function Carrito() {
     () =>
       items.map((it) => {
         const producto = productos.find((p) => p.id === it.productoId);
-        const precioUnit = producto ? getPrecioVolumen(producto, it.cantidad) : 0;
-        return { ...it, producto, precioUnit, importe: +(precioUnit * it.cantidad).toFixed(2) };
+        const precioVolumen = producto ? getPrecioVolumen(producto, it.cantidad) : 0;
+        const promo = producto ? mejorPromocion(producto, promociones) : null;
+        const descuentoPct = promo ? Number(promo.descuentoPct) : 0;
+        const precioUnit = +(precioVolumen * (1 - descuentoPct / 100)).toFixed(2);
+        return {
+          ...it,
+          producto,
+          precioBase: precioVolumen,
+          precioUnit,
+          descuentoPct,
+          promocion: promo,
+          importe: +(precioUnit * it.cantidad).toFixed(2),
+        };
       }),
-    [items, productos],
+    [items, productos, promociones],
   );
 
   const totales = useMemo(
@@ -170,9 +184,21 @@ export default function Carrito() {
                   <p className="text-[11px] tracking-[0.2em] uppercase text-amber-light/65">
                     Precio unit.
                   </p>
-                  <p className="font-display font-bold text-amber text-[20px] leading-none mt-1.5">
-                    S/ {it.precioUnit.toFixed(2)}
-                  </p>
+                  <div className="mt-1.5 flex items-baseline justify-end gap-2">
+                    <p className="font-display font-bold text-amber text-[20px] leading-none">
+                      S/ {it.precioUnit.toFixed(2)}
+                    </p>
+                    {it.descuentoPct > 0 && (
+                      <p className="text-cream/45 text-[13px] line-through">
+                        S/ {it.precioBase.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  {it.descuentoPct > 0 && (
+                    <p className="mt-1 text-green-300 text-[11px]">
+                      Promo «{it.promocion.nombre}» −{it.descuentoPct}%
+                    </p>
+                  )}
                   <p className="text-[12px] text-cream/65 mt-1">
                     Importe: <b className="text-cream">S/ {it.importe.toFixed(2)}</b>
                   </p>

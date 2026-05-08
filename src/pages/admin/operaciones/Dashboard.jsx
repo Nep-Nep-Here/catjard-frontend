@@ -12,13 +12,14 @@ export default function OperacionesDashboard() {
   const pedidos = useSelector(selectPedidos);
   const productos = useSelector(selectProductos);
 
+  const porIniciar = pedidos.filter((p) => p.estado === 'por_iniciar');
   const enDiseno = pedidos.filter((p) => p.estado === 'en_diseno');
   const esperandoArte = pedidos.filter((p) => p.estado === 'esperando_aprobacion_arte');
   const enProduccion = pedidos.filter((p) => p.estado === 'en_produccion');
   const enControl = pedidos.filter((p) => p.estado === 'control_calidad');
 
   const activos = pedidos.filter((p) =>
-    ['en_diseno', 'esperando_aprobacion_arte', 'en_produccion'].includes(p.estado),
+    ['por_iniciar', 'en_diseno', 'esperando_aprobacion_arte', 'en_produccion'].includes(p.estado),
   );
 
   return (
@@ -29,7 +30,8 @@ export default function OperacionesDashboard() {
         subtitle={`${activos.length} pedidos activos`}
       />
 
-      <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard label="Por iniciar" value={porIniciar.length} hint="Recién aprobados" />
         <KpiCard label="En diseño" value={enDiseno.length} hint="Por subir arte" />
         <KpiCard label="Esperando aprobación" value={esperandoArte.length} hint="Cliente revisa arte" />
         <KpiCard label="En producción" value={enProduccion.length} hint="Personalizando" />

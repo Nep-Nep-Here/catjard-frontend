@@ -1,12 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectClientes } from '../../../redux/slices/clientesSlice.js';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  selectClientes,
+  selectClientesStatus,
+  selectClientesError,
+  fetchClientes,
+} from '../../../redux/slices/clientesSlice.js';
 import AdminHeader, { EmptyState } from '../../../components/AdminHeader.jsx';
 
 export default function Clientes() {
   const clientes = useSelector(selectClientes);
+  const status = useSelector(selectClientesStatus);
+  const error = useSelector(selectClientesError);
+  const dispatch = useDispatch();
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchClientes());
+  }, [status, dispatch]);
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -25,7 +37,13 @@ export default function Clientes() {
       <AdminHeader
         eyebrow="CRM"
         title="Clientes"
-        subtitle={`${filtrados.length} de ${clientes.length}`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${error}`
+            : `${filtrados.length} de ${clientes.length}`
+        }
       />
 
       <div className="mt-8 max-w-[420px]">

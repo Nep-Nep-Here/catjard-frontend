@@ -5,6 +5,8 @@ import { getEscalaPrecio, getCategoria } from '../../data/products.js';
 import { selectUser } from '../../redux/slices/authSlice.js';
 import { addItem } from '../../redux/slices/cartSlice.js';
 import { selectProductoBySlug } from '../../redux/slices/productosSlice.js';
+import { selectPromociones } from '../../redux/slices/promocionesSlice.js';
+import { calcularPrecio } from '../../utils/promociones.js';
 import ProductImage from '../../components/ProductImage.jsx';
 
 export default function DetalleProducto() {
@@ -14,6 +16,7 @@ export default function DetalleProducto() {
   const navigate = useNavigate();
 
   const producto = useSelector(selectProductoBySlug(slug));
+  const promociones = useSelector(selectPromociones);
 
   const [cantidad, setCantidad] = useState(50);
   const [tecnica, setTecnica] = useState(producto?.tecnicas?.[0] ?? '');
@@ -44,6 +47,11 @@ export default function DetalleProducto() {
   const escala = getEscalaPrecio(producto);
   const stockBajo = producto.stock <= producto.stockMinimo;
   const isCliente = user?.role === 'cliente';
+  const { precioBase, precioFinal, descuentoPct, promocion } = calcularPrecio(
+    producto,
+    promociones,
+  );
+  const tienePromo = descuentoPct > 0;
 
   const onAgregar = () => {
     dispatch(
@@ -92,12 +100,28 @@ export default function DetalleProducto() {
               {producto.descripcion}
             </p>
 
-            <div className="mt-8 flex items-baseline gap-6">
+            <div className="mt-8 flex items-baseline gap-6 flex-wrap">
               <div>
-                <p className="font-display font-black text-amber text-[40px] leading-none">
-                  S/ {producto.precio.toFixed(2)}
+                <div className="flex items-baseline gap-3">
+                  <p className="font-display font-black text-amber text-[40px] leading-none">
+                    S/ {precioFinal.toFixed(2)}
+                  </p>
+                  {tienePromo && (
+                    <p className="text-cream/45 text-[20px] line-through">
+                      S/ {precioBase.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <p className="text-cream/55 text-[12px] mt-1">
+                  {tienePromo
+                    ? `precio con descuento · 50 unidades`
+                    : `precio base · 50 unidades`}
                 </p>
-                <p className="text-cream/55 text-[12px] mt-1">precio base · 50 unidades</p>
+                {tienePromo && (
+                  <p className="mt-2 text-green-300 text-[12px]">
+                    Promo «{promocion.nombre}» −{descuentoPct}% activa
+                  </p>
+                )}
               </div>
               <span
                 className={`text-[12px] px-3 py-1 rounded-full ${

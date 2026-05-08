@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectLeadById,
+  selectLeadsStatus,
+  fetchLeads,
   actualizarLead,
   convertirLead,
 } from '../../../redux/slices/leadsSlice.js';
@@ -18,10 +20,15 @@ import AdminHeader, { Card, StatusBadge } from '../../../components/AdminHeader.
 export default function LeadDetalle() {
   const { id } = useParams();
   const lead = useSelector(selectLeadById(id));
+  const leadsStatus = useSelector(selectLeadsStatus);
   const user = useSelector(selectUser);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [notas, setNotas] = useState(lead?.notasInternas ?? '');
+
+  useEffect(() => {
+    if (leadsStatus === 'idle') dispatch(fetchLeads());
+  }, [leadsStatus, dispatch]);
   const [savedNotas, setSavedNotas] = useState(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [errConvert, setErrConvert] = useState(null);
@@ -29,7 +36,11 @@ export default function LeadDetalle() {
   if (!lead) {
     return (
       <section>
-        <AdminHeader title="Lead no encontrado" backTo="/admin/ventas/leads" backLabel="← Volver a leads" />
+        <AdminHeader
+          title={leadsStatus === 'loading' ? 'Cargando…' : 'Lead no encontrado'}
+          backTo="/admin/ventas/leads"
+          backLabel="← Volver a leads"
+        />
       </section>
     );
   }

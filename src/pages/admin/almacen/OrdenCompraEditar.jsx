@@ -3,33 +3,30 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectOCById,
-  selectOrdenesCompra,
+  selectOCStatus,
+  fetchOC,
   crearOC,
-  actualizarOC,
-  setEstadoOC,
+  enviarOC,
+  recibirOC,
+  cancelarOC,
+  eliminarOC,
 } from '../../../redux/slices/ordenesCompraSlice.js';
 import {
   selectProveedores,
+  selectProveedoresStatus,
+  fetchProveedores,
 } from '../../../redux/slices/proveedoresSlice.js';
-import {
-  selectProductos,
-  ajustarStock,
-} from '../../../redux/slices/productosSlice.js';
+import { selectProductos } from '../../../redux/slices/productosSlice.js';
 import { selectUser } from '../../../redux/slices/authSlice.js';
-import { registrarMovimiento } from '../../../redux/slices/movimientosSlice.js';
 import {
-  ESTADO_OC,
   ESTADO_OC_LABEL,
   ESTADO_OC_COLOR,
   calcularTotalesOC,
-  nuevoIdOC,
 } from '../../../data/ordenesCompra.js';
 import AdminHeader, { Card, StatusBadge } from '../../../components/AdminHeader.jsx';
 
 const EMPTY = {
-  fecha: new Date().toISOString().slice(0, 10),
   proveedorId: '',
-  proveedorNombre: '',
   items: [{ productoId: '', cantidad: 0, precioUnit: 0 }],
   fechaEsperada: '',
   notas: '',
@@ -39,29 +36,33 @@ export default function OrdenCompraEditar() {
   const { id } = useParams();
   const isNew = id === 'nueva';
   const oc = useSelector(selectOCById(id));
-  const ocList = useSelector(selectOrdenesCompra);
+  const ocStatus = useSelector(selectOCStatus);
   const proveedores = useSelector(selectProveedores);
+  const proveedoresStatus = useSelector(selectProveedoresStatus);
   const productos = useSelector(selectProductos);
   const user = useSelector(selectUser);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState(isNew ? EMPTY : oc ?? EMPTY);
+  const [form, setForm] = useState(EMPTY);
   const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isNew && oc) setForm(oc);
-  }, [oc, isNew]);
+    if (proveedoresStatus === 'idle') dispatch(fetchProveedores());
+  }, [proveedoresStatus, dispatch]);
+
+  useEffect(() => {
+    if (!isNew && ocStatus === 'idle') dispatch(fetchOC());
+  }, [isNew, ocStatus, dispatch]);
 
   const totales = useMemo(() => calcularTotalesOC(form.items), [form.items]);
-
-  const editable = isNew || (oc && (oc.estado === 'borrador' || oc.estado === 'enviada'));
 
   if (!isNew && !oc) {
     return (
       <section>
         <AdminHeader
-          title="OC no encontrada"
+          title={ocStatus === 'loading' ? 'Cargando…' : 'OC no encontrada'}
           backTo="/admin/almacen/ordenes"
           backLabel="← Volver"
         />
@@ -70,20 +71,23 @@ export default function OrdenCompraEditar() {
   }
 
   const onChangeProveedor = (e) => {
-    const proveedorId = parseInt(e.target.value, 10);
-    const prov = proveedores.find((p) => p.id === proveedorId);
-    setForm((f) => ({
-      ...f,
-      proveedorId,
-      proveedorNombre: prov?.nombreComercial ?? prov?.razonSocial ?? '',
-    }));
+    const proveedorId = parseInt(e.target.value, 10) || '';
+    setForm((f) => ({ ...f, proveedorId }));
   };
 
   const onChangeItem = (i, key, value) => {
     setForm((f) => ({
       ...f,
       items: f.items.map((it, idx) =>
-        idx === i ? { ...it, [key]: key === 'productoId' ? parseInt(value, 10) || '' : parseFloat(value) || 0 } : it,
+        idx === i
+          ? {
+              ...it,
+              [key]:
+                key === 'productoId'
+                  ? parseInt(value, 10) || ''
+                  : parseFloat(value) || 0,
+            }
+          : it,
       ),
     }));
   };
@@ -100,119 +104,104 @@ export default function OrdenCompraEditar() {
   const onChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  const guardar = (estado = null) => {
+  const crear = async () => {
     setErr(null);
     if (!form.proveedorId) return setErr('Selecciona un proveedor.');
     if (form.items.length === 0) return setErr('Agrega al menos un item.');
     if (form.items.some((it) => !it.productoId || it.cantidad <= 0 || it.precioUnit <= 0))
       return setErr('Todos los items requieren producto, cantidad y precio.');
 
-    const payload = {
-      ...form,
-      ...totales,
-      usuario: user?.nombre ?? '—',
-    };
-
-    if (isNew) {
-      const nuevoId = nuevoIdOC(ocList);
-      dispatch(crearOC({ ...payload, id: nuevoId, estado: estado ?? 'borrador' }));
-      navigate(`/admin/almacen/ordenes/${nuevoId}`);
+    setBusy(true);
+    const action = await dispatch(
+      crearOC({
+        proveedorId: form.proveedorId,
+        items: form.items.map((it) => ({
+          productoId: it.productoId,
+          cantidad: it.cantidad,
+          precioUnit: it.precioUnit,
+        })),
+        fechaEsperada: form.fechaEsperada || null,
+        usuario: user?.nombre ?? null,
+        notas: form.notas || null,
+      }),
+    );
+    setBusy(false);
+    if (action.meta.requestStatus === 'fulfilled') {
+      navigate(`/admin/almacen/ordenes/${action.payload.id}`);
     } else {
-      dispatch(actualizarOC({ ...payload, id: oc.id, estado: estado ?? oc.estado }));
-      if (estado) {
-        dispatch(setEstadoOC({ id: oc.id, estado }));
-      }
+      setErr(action.payload || 'No se pudo crear la OC.');
     }
   };
 
-  const recibir = () => {
-    if (!oc) return;
-    const fechaRecepcion = new Date().toISOString().slice(0, 10);
-    dispatch(setEstadoOC({ id: oc.id, estado: ESTADO_OC.RECIBIDA, fechaRecepcion }));
-    oc.items.forEach((it) => {
-      dispatch(ajustarStock({ id: it.productoId, delta: it.cantidad }));
-      dispatch(
-        registrarMovimiento({
-          fecha: fechaRecepcion,
-          tipo: 'entrada',
-          productoId: it.productoId,
-          cantidad: it.cantidad,
-          motivo: 'Compra a proveedor',
-          referencia: oc.id,
-          usuario: user?.nombre ?? '—',
-          notas: `Recepción de ${oc.id}`,
-        }),
-      );
-    });
+  const accion = (thunk, args) => async () => {
+    setErr(null);
+    setBusy(true);
+    const action = await dispatch(thunk(args));
+    setBusy(false);
+    if (action.meta.requestStatus !== 'fulfilled') {
+      setErr(action.payload || 'No se pudo aplicar la acción.');
+    }
   };
 
-  const cancelar = () => {
-    if (!oc) return;
-    dispatch(setEstadoOC({ id: oc.id, estado: ESTADO_OC.CANCELADA }));
+  const onEliminar = async () => {
+    setErr(null);
+    if (!window.confirm('¿Eliminar esta OC en borrador?')) return;
+    setBusy(true);
+    const action = await dispatch(eliminarOC(oc.id));
+    setBusy(false);
+    if (action.meta.requestStatus === 'fulfilled') {
+      navigate('/admin/almacen/ordenes');
+    } else {
+      setErr(action.payload || 'No se pudo eliminar.');
+    }
   };
 
-  return (
-    <section>
-      <AdminHeader
-        backTo="/admin/almacen/ordenes"
-        backLabel="← Volver a OCs"
-        eyebrow={isNew ? 'Almacén' : oc.id}
-        title={isNew ? 'Nueva orden de compra' : `OC para ${oc.proveedorNombre}`}
-        subtitle={isNew ? null : `Emitida ${oc.fecha}`}
-        action={
-          !isNew && (
-            <StatusBadge className={ESTADO_OC_COLOR[oc.estado]}>
-              {ESTADO_OC_LABEL[oc.estado]}
-            </StatusBadge>
-          )
-        }
-      />
+  // ===== Vista CREAR =====
+  if (isNew) {
+    return (
+      <section>
+        <AdminHeader
+          backTo="/admin/almacen/ordenes"
+          backLabel="← Volver a OCs"
+          eyebrow="Almacén"
+          title="Nueva orden de compra"
+        />
+        <div className="mt-10 grid lg:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-5">
+            <Card title="Cabecera">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Proveedor" required>
+                  <select
+                    value={form.proveedorId || ''}
+                    onChange={onChangeProveedor}
+                    required
+                    className={inputCls}
+                  >
+                    <option value="">Selecciona…</option>
+                    {proveedores
+                      .filter((p) => p.activo)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombreComercial || p.razonSocial}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                <Field label="Fecha esperada">
+                  <input
+                    type="date"
+                    name="fechaEsperada"
+                    value={form.fechaEsperada || ''}
+                    onChange={onChange}
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+            </Card>
 
-      <div className="mt-10 grid lg:grid-cols-[1fr_320px] gap-6">
-        <div className="space-y-5">
-          <Card title="Cabecera">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Proveedor" required>
-                <select
-                  value={form.proveedorId || ''}
-                  onChange={onChangeProveedor}
-                  required
-                  disabled={!editable}
-                  className={inputCls}
-                >
-                  <option value="">Selecciona…</option>
-                  {proveedores.filter((p) => p.activo || p.id === form.proveedorId).map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombreComercial || p.razonSocial}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Fecha emisión">
-                <input
-                  type="date"
-                  name="fecha"
-                  value={form.fecha}
-                  onChange={onChange}
-                  disabled={!editable}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Fecha esperada">
-                <input
-                  type="date"
-                  name="fechaEsperada"
-                  value={form.fechaEsperada || ''}
-                  onChange={onChange}
-                  disabled={!editable}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
-          </Card>
-
-          <Card
-            title="Items"
-            action={
-              editable && (
+            <Card
+              title="Items"
+              action={
                 <button
                   type="button"
                   onClick={addItem}
@@ -220,91 +209,85 @@ export default function OrdenCompraEditar() {
                 >
                   + Agregar item
                 </button>
-              )
-            }
-          >
-            <div className="space-y-3">
-              {form.items.map((it, i) => {
-                const producto = productos.find((p) => p.id === it.productoId);
-                const importe = (Number(it.cantidad) || 0) * (Number(it.precioUnit) || 0);
-                return (
-                  <div key={i} className="grid sm:grid-cols-[2fr_1fr_1fr_auto_auto] gap-3 p-3 rounded-md border border-amber/10 bg-bg-dark/30 items-end">
-                    <Field label="Producto" required={i === 0}>
-                      <select
-                        value={it.productoId || ''}
-                        onChange={(e) => onChangeItem(i, 'productoId', e.target.value)}
-                        disabled={!editable}
-                        className={inputCls}
-                      >
-                        <option value="">Selecciona…</option>
-                        {productos.map((p) => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Cantidad" required={i === 0}>
-                      <input
-                        type="number"
-                        min={1}
-                        value={it.cantidad}
-                        onChange={(e) => onChangeItem(i, 'cantidad', e.target.value)}
-                        disabled={!editable}
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Precio unit. S/" required={i === 0}>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={it.precioUnit}
-                        onChange={(e) => onChangeItem(i, 'precioUnit', e.target.value)}
-                        disabled={!editable}
-                        className={inputCls}
-                      />
-                    </Field>
-                    <div className="text-right">
-                      <p className="text-[10px] tracking-[0.2em] uppercase text-amber-light/65">Importe</p>
-                      <p className="font-display font-bold text-amber text-[16px] mt-1">S/ {importe.toFixed(2)}</p>
-                    </div>
-                    {editable && form.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItem(i)}
-                        className="text-red-300/70 hover:text-red-300 text-[12px] self-center"
-                      >
-                        Quitar
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-amber/15 grid sm:grid-cols-3 gap-4 text-[14px]">
-              <Row label="Subtotal" value={`S/ ${totales.subtotal.toFixed(2)}`} />
-              <Row label="IGV (18 %)" value={`S/ ${totales.igv.toFixed(2)}`} />
-              <Row
-                label={<span className="text-cream font-semibold">Total</span>}
-                value={
-                  <span className="text-amber font-display font-bold text-[20px]">
-                    S/ {totales.total.toFixed(2)}
-                  </span>
-                }
+              }
+            >
+              <ItemsForm
+                items={form.items}
+                productos={productos}
+                onChangeItem={onChangeItem}
+                removeItem={removeItem}
+                editable
               />
-            </div>
-          </Card>
+              <Totales totales={totales} />
+            </Card>
 
-          <Card title="Notas">
-            <textarea
-              name="notas"
-              value={form.notas}
-              onChange={onChange}
-              rows={3}
-              disabled={!editable}
-              className={`${inputCls} resize-y`}
+            <Card title="Notas">
+              <textarea
+                name="notas"
+                value={form.notas}
+                onChange={onChange}
+                rows={3}
+                className={`${inputCls} resize-y`}
+              />
+            </Card>
+          </div>
+
+          <aside className="space-y-5">
+            {err && (
+              <div className="p-3 rounded bg-red-400/10 text-red-300 text-[13px]">{err}</div>
+            )}
+            <Card title="Acciones">
+              <button
+                onClick={crear}
+                disabled={busy}
+                className="w-full px-5 py-2.5 rounded-full bg-amber text-brown font-semibold text-[13px] hover:bg-amber-light transition-colors disabled:opacity-50"
+              >
+                {busy ? 'Creando…' : 'Crear como borrador'}
+              </button>
+              <p className="mt-3 text-[11px] text-amber-light/65">
+                Una vez creada, podrás enviarla, recibirla o cancelarla desde el detalle.
+              </p>
+            </Card>
+          </aside>
+        </div>
+      </section>
+    );
+  }
+
+  // ===== Vista DETALLE =====
+  return (
+    <section>
+      <AdminHeader
+        backTo="/admin/almacen/ordenes"
+        backLabel="← Volver a OCs"
+        eyebrow={oc.codigo}
+        title={`OC para ${oc.proveedorNombre}`}
+        subtitle={`Emitida ${oc.fecha}`}
+        action={
+          <StatusBadge className={ESTADO_OC_COLOR[oc.estado]}>
+            {ESTADO_OC_LABEL[oc.estado]}
+          </StatusBadge>
+        }
+      />
+
+      <div className="mt-10 grid lg:grid-cols-[1fr_320px] gap-6">
+        <div className="space-y-5">
+          <Card title="Items">
+            <ItemsForm
+              items={oc.items}
+              productos={productos}
+              editable={false}
+            />
+            <Totales
+              totales={{ subtotal: oc.subtotal, igv: oc.igv, total: oc.total }}
             />
           </Card>
+
+          {oc.notas && (
+            <Card title="Notas">
+              <p className="text-cream/85 text-[13px] whitespace-pre-line">{oc.notas}</p>
+            </Card>
+          )}
         </div>
 
         <aside className="space-y-5">
@@ -312,55 +295,166 @@ export default function OrdenCompraEditar() {
             <div className="p-3 rounded bg-red-400/10 text-red-300 text-[13px]">{err}</div>
           )}
 
-          {editable && (
-            <Card title="Acciones">
-              <div className="space-y-2">
-                <button
-                  onClick={() => guardar('borrador')}
-                  className="w-full px-5 py-2.5 rounded-full border border-amber/40 text-cream text-[13px] font-medium hover:border-amber hover:text-amber-light transition-colors"
-                >
-                  Guardar como borrador
-                </button>
-                <button
-                  onClick={() => guardar('enviada')}
-                  className="w-full px-5 py-2.5 rounded-full bg-amber text-brown font-semibold text-[13px] hover:bg-amber-light transition-colors"
-                >
-                  Enviar al proveedor
-                </button>
-                {!isNew && oc?.estado === 'enviada' && (
+          <Card title="Acciones">
+            <div className="space-y-2">
+              {oc.estado === 'borrador' && (
+                <>
                   <button
-                    onClick={recibir}
-                    className="w-full px-5 py-2.5 rounded-full bg-green-500/90 text-cream text-[13px] font-semibold hover:bg-green-500 transition-colors"
+                    onClick={accion(enviarOC, oc.id)}
+                    disabled={busy}
+                    className="w-full px-5 py-2.5 rounded-full bg-amber text-brown font-semibold text-[13px] hover:bg-amber-light transition-colors disabled:opacity-50"
                   >
-                    Marcar como recibida
+                    Enviar al proveedor
                   </button>
-                )}
-                {!isNew && (oc?.estado === 'borrador' || oc?.estado === 'enviada') && (
                   <button
-                    onClick={cancelar}
-                    className="w-full px-5 py-2.5 rounded-full border border-red-400/40 text-red-300 text-[13px] hover:bg-red-500/10 transition-colors"
+                    onClick={accion(cancelarOC, oc.id)}
+                    disabled={busy}
+                    className="w-full px-5 py-2.5 rounded-full border border-red-400/40 text-red-300 text-[13px] hover:bg-red-500/10 transition-colors disabled:opacity-50"
                   >
                     Cancelar OC
                   </button>
-                )}
-              </div>
-            </Card>
-          )}
+                  <button
+                    onClick={onEliminar}
+                    disabled={busy}
+                    className="w-full px-5 py-2 rounded-full text-red-300/70 text-[12px] hover:text-red-300 disabled:opacity-50"
+                  >
+                    Eliminar borrador
+                  </button>
+                </>
+              )}
+              {oc.estado === 'enviada' && (
+                <>
+                  <button
+                    onClick={accion(recibirOC, { id: oc.id, usuario: user?.nombre })}
+                    disabled={busy}
+                    className="w-full px-5 py-2.5 rounded-full bg-green-500/90 text-cream text-[13px] font-semibold hover:bg-green-500 transition-colors disabled:opacity-50"
+                  >
+                    {busy ? 'Procesando…' : 'Marcar como recibida'}
+                  </button>
+                  <p className="text-[11px] text-amber-light/65">
+                    Al recibir, se registra entrada en inventario y se actualiza el stock automáticamente.
+                  </p>
+                  <button
+                    onClick={accion(cancelarOC, oc.id)}
+                    disabled={busy}
+                    className="w-full px-5 py-2.5 rounded-full border border-red-400/40 text-red-300 text-[13px] hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    Cancelar OC
+                  </button>
+                </>
+              )}
+              {oc.estado === 'recibida' && (
+                <p className="text-cream/85 text-[13px]">
+                  ✓ OC recibida el {oc.fechaRecepcion}. Stock actualizado.
+                </p>
+              )}
+              {oc.estado === 'cancelada' && (
+                <p className="text-cream/65 text-[13px]">OC cancelada.</p>
+              )}
+            </div>
+          </Card>
 
-          {!isNew && (
-            <Card title="Información">
-              <dl className="space-y-2 text-[13px]">
-                <Row label="Estado" value={ESTADO_OC_LABEL[oc.estado]} />
-                <Row label="Esperada" value={oc.fechaEsperada || '—'} />
-                <Row label="Recibida" value={oc.fechaRecepcion || '—'} />
-                <Row label="Items" value={oc.items.length} />
-                <Row label="Usuario" value={oc.usuario ?? '—'} />
-              </dl>
-            </Card>
-          )}
+          <Card title="Información">
+            <dl className="space-y-2 text-[13px]">
+              <Row label="Estado" value={ESTADO_OC_LABEL[oc.estado]} />
+              <Row label="Esperada" value={oc.fechaEsperada || '—'} />
+              <Row label="Recibida" value={oc.fechaRecepcion || '—'} />
+              <Row label="Items" value={oc.items.length} />
+              <Row label="Usuario" value={oc.usuario ?? '—'} />
+            </dl>
+          </Card>
         </aside>
       </div>
     </section>
+  );
+}
+
+function ItemsForm({ items, productos, onChangeItem, removeItem, editable }) {
+  return (
+    <div className="space-y-3">
+      {items.map((it, i) => {
+        const importe = (Number(it.cantidad) || 0) * (Number(it.precioUnit) || 0);
+        return (
+          <div
+            key={i}
+            className="grid sm:grid-cols-[2fr_1fr_1fr_auto_auto] gap-3 p-3 rounded-md border border-amber/10 bg-bg-dark/30 items-end"
+          >
+            <Field label="Producto" required={editable && i === 0}>
+              <select
+                value={it.productoId || ''}
+                onChange={(e) => editable && onChangeItem(i, 'productoId', e.target.value)}
+                disabled={!editable}
+                className={inputCls}
+              >
+                <option value="">
+                  {editable ? 'Selecciona…' : (productos.find((p) => p.id === it.productoId)?.nombre ?? '—')}
+                </option>
+                {productos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Cantidad" required={editable && i === 0}>
+              <input
+                type="number"
+                min={1}
+                value={it.cantidad}
+                onChange={(e) => editable && onChangeItem(i, 'cantidad', e.target.value)}
+                disabled={!editable}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Precio unit. S/" required={editable && i === 0}>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={it.precioUnit}
+                onChange={(e) => editable && onChangeItem(i, 'precioUnit', e.target.value)}
+                disabled={!editable}
+                className={inputCls}
+              />
+            </Field>
+            <div className="text-right">
+              <p className="text-[10px] tracking-[0.2em] uppercase text-amber-light/65">
+                Importe
+              </p>
+              <p className="font-display font-bold text-amber text-[16px] mt-1">
+                S/ {importe.toFixed(2)}
+              </p>
+            </div>
+            {editable && items.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeItem(i)}
+                className="text-red-300/70 hover:text-red-300 text-[12px] self-center"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Totales({ totales }) {
+  return (
+    <div className="mt-5 pt-4 border-t border-amber/15 grid sm:grid-cols-3 gap-4 text-[14px]">
+      <Row label="Subtotal" value={`S/ ${Number(totales.subtotal).toFixed(2)}`} />
+      <Row label="IGV (18 %)" value={`S/ ${Number(totales.igv).toFixed(2)}`} />
+      <Row
+        label={<span className="text-cream font-semibold">Total</span>}
+        value={
+          <span className="text-amber font-display font-bold text-[20px]">
+            S/ {Number(totales.total).toFixed(2)}
+          </span>
+        }
+      />
+    </div>
   );
 }
 

@@ -1,7 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectOrdenesCompra } from '../../../redux/slices/ordenesCompraSlice.js';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  selectOrdenesCompra,
+  selectOCStatus,
+  selectOCError,
+  fetchOC,
+} from '../../../redux/slices/ordenesCompraSlice.js';
 import {
   ESTADO_OC_LABEL,
   ESTADO_OC_COLOR,
@@ -18,7 +23,14 @@ const FILTROS = [
 
 export default function OrdenesCompra() {
   const oc = useSelector(selectOrdenesCompra);
+  const status = useSelector(selectOCStatus);
+  const error = useSelector(selectOCError);
+  const dispatch = useDispatch();
   const [filtro, setFiltro] = useState('');
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchOC());
+  }, [status, dispatch]);
 
   const filtradas = useMemo(
     () => (filtro ? oc.filter((o) => o.estado === filtro) : oc),
@@ -30,7 +42,13 @@ export default function OrdenesCompra() {
       <AdminHeader
         eyebrow="Almacén"
         title="Órdenes de compra"
-        subtitle={`${filtradas.length} de ${oc.length}`}
+        subtitle={
+          status === 'loading'
+            ? 'Cargando…'
+            : status === 'failed'
+            ? `Error: ${error}`
+            : `${filtradas.length} de ${oc.length}`
+        }
         action={
           <Link
             to="/admin/almacen/ordenes/nueva"
@@ -79,7 +97,7 @@ export default function OrdenesCompra() {
             <tbody>
               {filtradas.map((o) => (
                 <tr key={o.id} className="border-t border-amber/10 hover:bg-amber/5 transition-colors">
-                  <td className="px-5 py-3 font-mono text-cream/90">{o.id}</td>
+                  <td className="px-5 py-3 font-mono text-cream/90">{o.codigo ?? o.id}</td>
                   <td className="px-5 py-3 text-cream/85">{o.fecha}</td>
                   <td className="px-5 py-3 text-cream font-medium">{o.proveedorNombre}</td>
                   <td className="px-5 py-3 text-cream/85">{o.items.length}</td>
