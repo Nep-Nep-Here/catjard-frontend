@@ -1,4 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// MECANISMO DE SEGURIDAD (frontend): persistencia del JWT.
+// El token devuelto por /auth/login se guarda aquí y se reenvía como header
+// Authorization: Bearer <token> en cada request autenticada (ver request()).
 const TOKEN_KEY = 'catjard_token';
 
 export function getToken() {
@@ -34,6 +37,9 @@ export function decodeJwt(token) {
 async function request(method, path, { body, auth = true, headers = {} } = {}) {
   const finalHeaders = { ...headers };
   if (body !== undefined) finalHeaders['Content-Type'] = 'application/json';
+  // MECANISMO DE SEGURIDAD: adjunta el JWT en el header Authorization.
+  // Cada request autenticada lo lleva; los servicios lo verifican con su
+  // JwtAuthenticationFilter antes de permitir el acceso.
   if (auth) {
     const token = getToken();
     if (token) finalHeaders['Authorization'] = `Bearer ${token}`;
