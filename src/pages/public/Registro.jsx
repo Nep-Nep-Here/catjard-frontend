@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { registrar } from '../../services/authService.js';
 
 const INITIAL = {
   empresa: '',
@@ -14,22 +15,43 @@ const INITIAL = {
 export default function Registro() {
   const [form, setForm] = useState(INITIAL);
   const [err, setErr] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     if (form.password !== form.password2) {
       setErr('Las contraseñas no coinciden.');
       return;
     }
+    if (form.password.length < 6) {
+      setErr('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
     if (form.ruc.length !== 11) {
       setErr('El RUC debe tener 11 dígitos.');
       return;
     }
-    setEnviado(true);
+    setSubmitting(true);
+    try {
+      await registrar({
+        email: form.email.trim(),
+        password: form.password,
+        nombre: form.nombre.trim(),
+        empresa: form.empresa.trim(),
+        ruc: form.ruc.trim(),
+        telefono: form.telefono.trim() || null,
+        direccion: null,
+      });
+      setEnviado(true);
+    } catch (e) {
+      setErr(e.message || 'No se pudo crear la cuenta.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (enviado) {
@@ -43,9 +65,8 @@ export default function Registro() {
             Tu cuenta fue creada.
           </h1>
           <p className="mt-6 text-amber-light/85 text-[16px]">
-            Hemos recibido tus datos. Te enviaremos un correo cuando tu cuenta esté
-            activada (24 h hábiles). Mientras tanto, puedes iniciar sesión con una
-            cuenta demo.
+            Tu cuenta ya está activa. Inicia sesión con tu correo y contraseña
+            para empezar a cotizar.
           </p>
           <Link
             to="/login"
@@ -90,9 +111,10 @@ export default function Registro() {
 
           <button
             type="submit"
-            className="w-full px-6 py-4 rounded-full bg-amber text-brown font-semibold hover:bg-amber-light transition-colors"
+            disabled={submitting}
+            className="w-full px-6 py-4 rounded-full bg-amber text-brown font-semibold hover:bg-amber-light transition-colors disabled:opacity-50"
           >
-            Crear cuenta
+            {submitting ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
       </div>

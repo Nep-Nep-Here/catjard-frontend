@@ -17,7 +17,9 @@
       "Read(//c/Users/ADMIN/Documents/Universidad/datos2 - backend/catjard/sales-service/src/main/resources/**)",
       "Read(//c/Users/ADMIN/Documents/Universidad/datos2 - backend/catjard/sales-service/src/main/resources/db/migration/**)",
       "Bash(xargs -I{} grep -l \"@Table\" {})",
-      "Bash(xargs grep -l \"FeignClient\\\\|RequestInterceptor\")"
+      "Bash(xargs grep -l \"FeignClient\\\\|RequestInterceptor\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ADMIN\\\\Documents\\\\Universidad\\\\datos2 - backend\\\\catjard\" -Recurse -Filter \"*Controller.java\")",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

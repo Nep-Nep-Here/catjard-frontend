@@ -29,6 +29,24 @@ export async function login({ email, password }) {
   return user;
 }
 
+export async function registrar({ email, password, nombre, empresa, ruc, telefono, direccion }) {
+  try {
+    return await apiClient.post(
+      '/auth/registro',
+      { email, password, nombre, empresa, ruc, telefono, direccion },
+      { auth: false },
+    );
+  } catch (e) {
+    if (e.status === 400) {
+      throw new Error(e.message || 'Datos inválidos. Revisa los campos.');
+    }
+    if (e.status === 409) {
+      throw new Error('Ya existe una cuenta con ese correo.');
+    }
+    throw e;
+  }
+}
+
 export function logout() {
   clearToken();
 }
