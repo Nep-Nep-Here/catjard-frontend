@@ -14,7 +14,7 @@ import {
   clearCart,
 } from '../../redux/slices/cartSlice.js';
 import { crearCotizacion } from '../../redux/slices/cotizacionesSlice.js';
-import { selectUser } from '../../redux/slices/authSlice.js';
+import { selectUser, selectClienteId } from '../../redux/slices/authSlice.js';
 import { getPrecioVolumen } from '../../data/products.js';
 import { selectProductos } from '../../redux/slices/productosSlice.js';
 import { selectPromociones } from '../../redux/slices/promocionesSlice.js';
@@ -26,6 +26,7 @@ export default function Carrito() {
   const notas = useSelector(selectCartNotas);
   const logoNombre = useSelector(selectCartLogoNombre);
   const user = useSelector(selectUser);
+  const clienteId = useSelector(selectClienteId);
   const productos = useSelector(selectProductos);
   const promociones = useSelector(selectPromociones);
   const dispatch = useDispatch();
@@ -73,7 +74,7 @@ export default function Carrito() {
     setEnviando(true);
     try {
       const payload = {
-        clienteId: user.id,
+        clienteId,
         empresa: user.empresa,
         ruc: user.ruc,
         items: itemsConPrecio.map((it) => ({

@@ -51,6 +51,7 @@ const make = (overrides) => ({
   stockMinimo: 50,
   descripcion: '',
   tecnicas: [],
+  imagenUrl: '',
   ...overrides,
 });
 

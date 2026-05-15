@@ -1,7 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectUsuarios,
+  selectUsuariosStatus,
+  selectUsuariosError,
+  fetchUsuarios,
   crearUsuario,
   actualizarUsuario,
   eliminarUsuario,
@@ -27,8 +30,14 @@ const EMPTY = {
 
 export default function Usuarios() {
   const usuarios = useSelector(selectUsuarios);
+  const status = useSelector(selectUsuariosStatus);
+  const loadError = useSelector(selectUsuariosError);
   const userActual = useSelector(selectUser);
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchUsuarios());
+  }, [status, dispatch]);
 
   const [filtro, setFiltro] = useState('');
   const [editando, setEditando] = useState(null);
@@ -60,7 +69,7 @@ export default function Usuarios() {
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     if (!form.nombre || !form.email) return setErr('Nombre y correo son obligatorios.');
@@ -71,16 +80,24 @@ export default function Usuarios() {
     if (editando === 'new' && (!form.password || form.password.length < 6))
       return setErr('La contraseña debe tener al menos 6 caracteres.');
 
-    if (editando === 'new') {
-      dispatch(crearUsuario(form));
-    } else {
-      dispatch(actualizarUsuario(form));
+    try {
+      if (editando === 'new') {
+        await dispatch(crearUsuario(form)).unwrap();
+      } else {
+        await dispatch(actualizarUsuario(form)).unwrap();
+      }
+      setEditando(null);
+    } catch (msg) {
+      setErr(typeof msg === 'string' ? msg : 'No se pudo guardar el usuario.');
     }
-    setEditando(null);
   };
 
-  const onDelete = (id) => {
-    dispatch(eliminarUsuario(id));
+  const onDelete = async (id) => {
+    try {
+      await dispatch(eliminarUsuario(id)).unwrap();
+    } catch (msg) {
+      setErr(typeof msg === 'string' ? msg : 'No se pudo eliminar el usuario.');
+    }
     setConfirmando(null);
   };
 
@@ -112,21 +129,37 @@ export default function Usuarios() {
               <input type="email" name="email" value={form.email} onChange={onChange} required className={inputCls} />
             </Field>
             <Field
-              label={editando === 'new' ? 'Contraseña' : 'Nueva contraseña (opcional)'}
+              label="Contraseña"
               required={editando === 'new'}
-              hint={editando === 'new' ? 'Mínimo 6 caracteres.' : 'Deja en blanco para mantener la actual.'}
+              hint={
+                editando === 'new'
+                  ? 'Mínimo 6 caracteres.'
+                  : 'No se puede cambiar la contraseña desde esta vista.'
+              }
             >
               <input
                 type="text"
                 name="password"
-                value={form.password}
+                value={editando === 'new' ? form.password : ''}
                 onChange={onChange}
                 required={editando === 'new'}
-                className={inputCls}
+                disabled={editando !== 'new'}
+                className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
               />
             </Field>
-            <Field label="Rol" required>
-              <select name="role" value={form.role} onChange={onChange} required className={inputCls}>
+            <Field
+              label="Rol"
+              required
+              hint={editando !== 'new' ? 'El rol no se puede modificar después de crear el usuario.' : undefined}
+            >
+              <select
+                name="role"
+                value={form.role}
+                onChange={onChange}
+                required
+                disabled={editando !== 'new'}
+                className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
                 {ROLES_INTERNOS.map((r) => (
                   <option key={r.id} value={r.id}>{r.label}</option>
                 ))}
@@ -161,6 +194,14 @@ export default function Usuarios() {
 
       {editando == null && (
         <>
+          {loadError && (
+            <div className="mt-8 p-3 rounded bg-red-400/10 text-red-300 text-[13px]">
+              No se pudieron cargar los usuarios: {loadError}
+            </div>
+          )}
+          {status === 'loading' && (
+            <p className="mt-8 text-cream/60 text-[13px]">Cargando usuarios…</p>
+          )}
           <div className="mt-8 flex flex-wrap gap-2">
             <button
               onClick={() => setFiltro('')}

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, selectUser } from '../redux/slices/authSlice.js';
+import { logout, selectUser, selectClienteId } from '../redux/slices/authSlice.js';
 import { selectCartLineCount } from '../redux/slices/cartSlice.js';
 import { fetchCotizaciones } from '../redux/slices/cotizacionesSlice.js';
 import { fetchPedidos } from '../redux/slices/pedidosSlice.js';
@@ -17,16 +17,17 @@ const MENU = [
 
 export default function ClientLayout() {
   const user = useSelector(selectUser);
+  const clienteId = useSelector(selectClienteId);
   const cartLines = useSelector(selectCartLineCount);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user?.id != null) {
-      dispatch(fetchCotizaciones({ clienteId: user.id }));
-      dispatch(fetchPedidos({ clienteId: user.id }));
+    if (clienteId != null) {
+      dispatch(fetchCotizaciones({ clienteId }));
+      dispatch(fetchPedidos({ clienteId }));
     }
-  }, [dispatch, user?.id]);
+  }, [dispatch, clienteId]);
 
   const onLogout = () => {
     dispatch(logout());

@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { CatJardMark, SoundWave, Mail, Phone, Instagram, Linkedin, Whatsapp } from '../components/Icons.jsx';
+import { logout, selectUser } from '../redux/slices/authSlice.js';
+import { HOME_BY_ROLE } from '../services/authService.js';
+import { ROLE_LABELS } from '../data/users.js';
 
 const NAV_ITEMS = [
   { label: 'Productos', to: '/catalogo' },
@@ -11,7 +15,12 @@ const NAV_ITEMS = [
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const user = useSelector(selectUser);
   const isHome = location.pathname === '/';
 
   useEffect(() => {
@@ -20,7 +29,34 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [menuOpen]);
+
   const showSolid = scrolled || !isHome;
+  const panelTo = user ? HOME_BY_ROLE[user.role] ?? '/' : '/';
+  const iniciales = (user?.nombre ?? user?.email ?? '?')
+    .split(' ')
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const onLogout = () => {
+    dispatch(logout());
+    setMenuOpen(false);
+    navigate('/');
+  };
 
   return (
     <header
@@ -46,12 +82,73 @@ export function Navbar() {
             </Link>
           ))}
         </nav>
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 rounded-full bg-amber text-brown font-body font-semibold px-7 py-4 text-[15px] hover:bg-amber-light transition-colors"
-        >
-          Iniciar sesión
-        </Link>
+        {user ? (
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="inline-flex items-center gap-3 rounded-full bg-amber/10 hover:bg-amber/20 border border-amber/30 pl-2 pr-4 py-2 transition-colors"
+            >
+              <span className="w-9 h-9 rounded-full bg-amber text-brown font-display font-black flex items-center justify-center text-[14px]">
+                {iniciales}
+              </span>
+              <span className="hidden sm:flex flex-col items-start leading-tight">
+                <span className="font-body font-semibold text-cream text-[13px]">
+                  {user.nombre ?? user.email}
+                </span>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-amber-light/70">
+                  {ROLE_LABELS[user.role] ?? '—'}
+                </span>
+              </span>
+              <svg
+                className={`w-4 h-4 text-amber-light/70 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-xl bg-bg-dark border border-amber/20 shadow-xl shadow-black/40 overflow-hidden">
+                <div className="px-4 py-3 border-b border-amber/15">
+                  <p className="font-body font-semibold text-cream text-[14px] truncate">
+                    {user.nombre ?? '—'}
+                  </p>
+                  <p className="text-amber-light/65 text-[12px] truncate">{user.email}</p>
+                </div>
+                <Link
+                  to={panelTo}
+                  className="block px-4 py-3 text-cream/85 hover:bg-amber/10 hover:text-amber-light text-[13px] transition-colors"
+                >
+                  Ir a mi panel
+                </Link>
+                {user.role === 'cliente' && (
+                  <Link
+                    to="/cliente/perfil"
+                    className="block px-4 py-3 text-cream/85 hover:bg-amber/10 hover:text-amber-light text-[13px] transition-colors"
+                  >
+                    Mi perfil
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="w-full text-left px-4 py-3 text-cream/85 hover:bg-amber/10 hover:text-amber-light text-[13px] border-t border-amber/15 transition-colors"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 rounded-full bg-amber text-brown font-body font-semibold px-7 py-4 text-[15px] hover:bg-amber-light transition-colors"
+          >
+            Iniciar sesión
+          </Link>
+        )}
       </div>
     </header>
   );

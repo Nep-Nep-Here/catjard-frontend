@@ -24,6 +24,7 @@ export async function login({ email, password }) {
       email: claims.sub ?? claims.email ?? email,
       nombre: claims.name ?? claims.nombre ?? null,
       role: claims.role ?? claims.rol ?? null,
+      clienteId: claims.clienteId ?? null,
     };
   }
   return user;

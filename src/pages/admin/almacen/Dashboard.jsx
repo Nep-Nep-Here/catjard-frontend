@@ -65,7 +65,7 @@ export default function AlmacenDashboard() {
         <Card
           title="Stock crítico"
           action={
-            <Link to="/admin/almacen/inventario" className="text-[12px] text-amber-light/70 hover:text-amber-light underline underline-offset-4">
+            <Link to="/admin/almacen/catalogo" className="text-[12px] text-amber-light/70 hover:text-amber-light underline underline-offset-4">
               Ver inventario
             </Link>
           }

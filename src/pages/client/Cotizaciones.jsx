@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../../redux/slices/authSlice.js';
+import { selectClienteId } from '../../redux/slices/authSlice.js';
 import { selectCotizacionesByCliente } from '../../redux/slices/cotizacionesSlice.js';
 import {
   ESTADO_COTIZACION_LABEL,
@@ -18,8 +18,8 @@ const FILTROS = [
 ];
 
 export default function Cotizaciones() {
-  const user = useSelector(selectUser);
-  const cotizaciones = useSelector(selectCotizacionesByCliente(user?.id));
+  const clienteId = useSelector(selectClienteId);
+  const cotizaciones = useSelector(selectCotizacionesByCliente(clienteId));
   const [filtro, setFiltro] = useState('');
 
   const filtradas = useMemo(

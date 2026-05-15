@@ -32,6 +32,7 @@ export default function LeadDetalle() {
   const [savedNotas, setSavedNotas] = useState(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [errConvert, setErrConvert] = useState(null);
+  const [credenciales, setCredenciales] = useState(null);
 
   if (!lead) {
     return (
@@ -69,7 +70,7 @@ export default function LeadDetalle() {
     }
     setConvirtiendo(true);
     try {
-      await dispatch(
+      const result = await dispatch(
         convertirLead({
           id: lead.id,
           payload: {
@@ -83,12 +84,22 @@ export default function LeadDetalle() {
         }),
       ).unwrap();
       await dispatch(fetchClientes());
-      navigate('/admin/ventas/clientes');
+      setCredenciales({
+        email: result?.email,
+        password: result?.passwordTemporal,
+        cuentaCreada: result?.cuentaCreada,
+        mensaje: result?.mensaje,
+      });
     } catch (e) {
       setErrConvert(typeof e === 'string' ? e : 'No se pudo convertir el lead.');
     } finally {
       setConvirtiendo(false);
     }
+  };
+
+  const irACliente = () => {
+    setCredenciales(null);
+    navigate('/admin/ventas/clientes');
   };
 
   return (
@@ -192,7 +203,81 @@ export default function LeadDetalle() {
           </Card>
         </aside>
       </div>
+
+      {credenciales && (
+        <CredencialesModal
+          email={credenciales.email}
+          password={credenciales.password}
+          cuentaCreada={credenciales.cuentaCreada}
+          mensaje={credenciales.mensaje}
+          onClose={irACliente}
+        />
+      )}
     </section>
+  );
+}
+
+function CredencialesModal({ email, password, cuentaCreada, mensaje, onClose }) {
+  const [copiado, setCopiado] = useState(false);
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(`Email: ${email}\nContraseña: ${password}`);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2200);
+    } catch {}
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-dark/80 backdrop-blur-sm px-4">
+      <div className="w-full max-w-[520px] rounded-2xl border border-amber/30 bg-bg-dark p-7 shadow-2xl">
+        <p className="text-[11px] tracking-[0.3em] uppercase text-amber">
+          {cuentaCreada ? 'Cliente creado · acceso generado' : 'Cliente creado'}
+        </p>
+        <h2 className="mt-2 font-display font-black text-cream text-[28px] leading-tight">
+          {cuentaCreada ? 'Credenciales del cliente' : 'Conversión completada'}
+        </h2>
+        <p className="mt-3 text-amber-light/80 text-[13px] leading-relaxed">
+          {mensaje ?? 'El lead fue convertido en cliente CRM.'}
+        </p>
+
+        {cuentaCreada && password && (
+          <>
+            <div className="mt-6 rounded-xl border border-amber/30 bg-amber/5 p-4 space-y-3">
+              <Row label="Email" value={email} />
+              <Row label="Contraseña temporal" value={password} mono />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={copiar}
+                className="px-4 py-2 rounded-full border border-amber/40 text-cream text-[13px] hover:border-amber hover:text-amber-light transition-colors"
+              >
+                {copiado ? '✓ Copiado' : 'Copiar credenciales'}
+              </button>
+              <p className="text-amber-light/65 text-[11px]">
+                Esta contraseña no se vuelve a mostrar. Guárdala o envíasela al cliente.
+              </p>
+            </div>
+          </>
+        )}
+
+        <div className="mt-7 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-full bg-amber text-brown font-semibold text-[13px] hover:bg-amber-light transition-colors"
+          >
+            Ir a clientes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono }) {
+  return (
+    <div>
+      <p className="text-[10px] tracking-[0.2em] uppercase text-amber-light/65">{label}</p>
+      <p className={`mt-0.5 text-cream text-[14px] ${mono ? 'font-mono' : ''}`}>{value}</p>
+    </div>
   );
 }
 

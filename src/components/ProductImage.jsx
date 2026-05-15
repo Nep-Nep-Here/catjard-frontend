@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { getCategoria } from '../data/products.js';
 
 const SIZE_CLS = {
@@ -10,19 +11,34 @@ export default function ProductImage({ producto, size = 'md', className = '' }) 
   const categoria = getCategoria(producto?.categoria);
   const gradient = categoria?.gradient ?? 'from-amber to-brown';
   const cls = SIZE_CLS[size] ?? SIZE_CLS.md;
+  const imagenUrl = producto?.imagenUrl || producto?.imagen;
+  const [imgError, setImgError] = useState(false);
+  const mostrarImagen = imagenUrl && !imgError;
 
   return (
     <div
       className={`relative w-full ${cls.wrap} rounded-xl overflow-hidden bg-gradient-to-br ${gradient} ${className}`}
     >
-      <div className="absolute inset-0 halftone opacity-[0.12]" aria-hidden="true" />
-      <div className="absolute inset-0 flex items-center justify-center text-center px-6">
-        <span
-          className={`font-display font-black text-cream/95 leading-[0.95] balance ${cls.text}`}
-        >
-          {producto?.nombre ?? 'Producto'}
-        </span>
-      </div>
+      {mostrarImagen ? (
+        <img
+          src={imagenUrl}
+          alt={producto?.nombre ?? 'Producto'}
+          onError={() => setImgError(true)}
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <>
+          <div className="absolute inset-0 halftone opacity-[0.12]" aria-hidden="true" />
+          <div className="absolute inset-0 flex items-center justify-center text-center px-6">
+            <span
+              className={`font-display font-black text-cream/95 leading-[0.95] balance ${cls.text}`}
+            >
+              {producto?.nombre ?? 'Producto'}
+            </span>
+          </div>
+        </>
+      )}
       <div className="absolute top-3 left-3">
         <span className="inline-block px-3 py-1 rounded-full bg-bg-dark/40 backdrop-blur-sm text-cream/90 text-[11px] tracking-[0.2em] uppercase">
           {categoria?.label ?? '—'}

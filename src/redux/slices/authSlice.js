@@ -50,3 +50,7 @@ export const selectUser = (state) => state.auth.user;
 export const selectRole = (state) => state.auth.user?.role ?? null;
 export const selectIsAuthenticated = (state) => !!state.auth.user;
 export const selectAuthError = (state) => state.auth.error;
+// clienteId del CRM asociado al usuario; cae al user.id como fallback para no romper usuarios antiguos
+// que se registraron antes de la conversión lead→cliente.
+export const selectClienteId = (state) =>
+  state.auth.user?.clienteId ?? state.auth.user?.id ?? null;

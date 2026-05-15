@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+.claude
+*.log
+Cat_Jard_*.docx
+generar_word*.py

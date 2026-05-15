@@ -18,7 +18,10 @@ const EMPTY = {
   stockMinimo: 50,
   descripcion: '',
   tecnicas: [],
+  imagenUrl: '',
 };
+
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 export default function ProductoEditar() {
   const { id } = useParams();
@@ -70,6 +73,31 @@ export default function ProductoEditar() {
       slug: isNew && (!f.slug || f.slug === slugFromName(f.nombre)) ? slugFromName(nombre) : f.slug,
     }));
   };
+
+  const onImagenFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr(null);
+    if (!file.type.startsWith('image/')) {
+      setErr('El archivo debe ser una imagen.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setErr('La imagen supera 2 MB. Usa una más pequeña o pega una URL.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((f) => ({ ...f, imagenUrl: reader.result }));
+    };
+    reader.onerror = () => setErr('No se pudo leer la imagen.');
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const limpiarImagen = () => setForm((f) => ({ ...f, imagenUrl: '' }));
 
   const toggleTecnica = (t) => {
     setForm((f) => ({
@@ -192,6 +220,58 @@ export default function ProductoEditar() {
                 className={inputCls}
               />
             </Field>
+          </div>
+        </Card>
+
+        <Card title="Imagen del producto" className="lg:col-span-2">
+          <p className="text-amber-light/70 text-[13px] mb-4">
+            Pega una URL pública o sube una imagen desde tu equipo (máx. 2 MB). Si dejas esto vacío se mostrará un placeholder con el nombre.
+          </p>
+          <div className="grid md:grid-cols-[260px_1fr] gap-6 items-start">
+            <div className="relative w-full h-[200px] rounded-xl overflow-hidden border border-amber/20 bg-bg-dark flex items-center justify-center">
+              {form.imagenUrl ? (
+                <img
+                  src={form.imagenUrl}
+                  alt={form.nombre || 'Previsualización'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-amber-light/55 text-[12px] tracking-[0.2em] uppercase">
+                  Sin imagen
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              <Field label="URL de imagen" hint="Ruta pública (https://...) o data URL.">
+                <input
+                  name="imagenUrl"
+                  value={form.imagenUrl}
+                  onChange={onChange}
+                  placeholder="https://..."
+                  className={inputCls}
+                />
+              </Field>
+              <div className="flex flex-wrap gap-3 items-center">
+                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-amber/40 text-cream cursor-pointer hover:border-amber hover:text-amber-light transition-colors text-[13px]">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onImagenFile}
+                    className="hidden"
+                  />
+                  Subir desde mi equipo
+                </label>
+                {form.imagenUrl && (
+                  <button
+                    type="button"
+                    onClick={limpiarImagen}
+                    className="text-[13px] text-cream/65 hover:text-amber-light transition-colors"
+                  >
+                    Quitar imagen
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </Card>
 

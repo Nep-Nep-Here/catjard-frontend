@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../../redux/slices/authSlice.js';
+import { selectClienteId } from '../../redux/slices/authSlice.js';
 import { selectPedidosByCliente } from '../../redux/slices/pedidosSlice.js';
 import {
   ESTADO_PEDIDO_LABEL,
@@ -15,8 +15,8 @@ const FILTROS = [
 ];
 
 export default function Pedidos() {
-  const user = useSelector(selectUser);
-  const pedidos = useSelector(selectPedidosByCliente(user?.id));
+  const clienteId = useSelector(selectClienteId);
+  const pedidos = useSelector(selectPedidosByCliente(clienteId));
   const [filtro, setFiltro] = useState('');
 
   const filtrados = useMemo(() => {

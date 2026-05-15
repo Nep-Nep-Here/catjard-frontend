@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   selectPedidos,
   setEstadoPedido,
-  asignarCourier,
+  fetchPedidos,
 } from '../../../redux/slices/pedidosSlice.js';
 import {
   ESTADO_PEDIDO,
@@ -11,6 +11,7 @@ import {
   ESTADO_PEDIDO_COLOR,
   COURIERS,
 } from '../../../data/pedidos.js';
+import { crearDespacho, marcarDespachoEntregado } from '../../../services/despachosService.js';
 import AdminHeader, { Card, StatusBadge, EmptyState } from '../../../components/AdminHeader.jsx';
 
 const TABS = [
@@ -75,6 +76,8 @@ export default function Despachos() {
 function DespachoCard({ pedido, dispatch }) {
   const [courier, setCourier] = useState(pedido.courier ?? COURIERS[0]);
   const [guia, setGuia] = useState(pedido.guiaRemision ?? '');
+  const [enviando, setEnviando] = useState(false);
+  const [err, setErr] = useState(null);
 
   const marcarControl = () =>
     dispatch(
@@ -94,26 +97,38 @@ function DespachoCard({ pedido, dispatch }) {
       }),
     );
 
-  const generarGuia = () => {
-    if (!guia.trim()) return;
-    dispatch(asignarCourier({ pedidoId: pedido.id, courier, guiaRemision: guia.trim() }));
-    dispatch(
-      setEstadoPedido({
-        id: pedido.id,
-        estado: ESTADO_PEDIDO.DESPACHADO,
-        trackingKey: 'despachado',
-      }),
-    );
+  const generarGuia = async () => {
+    if (!guia.trim() || enviando) return;
+    setErr(null);
+    setEnviando(true);
+    try {
+      await crearDespacho({
+        pedidoCodigo: pedido.codigo,
+        courier,
+        guiaRemision: guia.trim(),
+        direccionEntrega: pedido.direccionEntrega,
+      });
+      await dispatch(fetchPedidos()).unwrap?.();
+    } catch (e) {
+      setErr(e?.message ?? 'No se pudo registrar el despacho.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
-  const marcarEntregado = () =>
-    dispatch(
-      setEstadoPedido({
-        id: pedido.id,
-        estado: ESTADO_PEDIDO.ENTREGADO,
-        trackingKey: 'entregado',
-      }),
-    );
+  const marcarEntregado = async () => {
+    if (enviando) return;
+    setErr(null);
+    setEnviando(true);
+    try {
+      await marcarDespachoEntregado(pedido.codigo, {});
+      await dispatch(fetchPedidos()).unwrap?.();
+    } catch (e) {
+      setErr(e?.message ?? 'No se pudo marcar como entregado.');
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   return (
     <Card>
@@ -186,10 +201,10 @@ function DespachoCard({ pedido, dispatch }) {
           </Field>
           <button
             onClick={generarGuia}
-            disabled={!guia.trim()}
+            disabled={!guia.trim() || enviando}
             className="px-5 py-2.5 rounded-full bg-amber text-brown font-semibold text-[13px] hover:bg-amber-light transition-colors disabled:opacity-50"
           >
-            Generar guía y despachar
+            {enviando ? 'Despachando…' : 'Generar guía y despachar'}
           </button>
         </div>
       )}
@@ -203,9 +218,10 @@ function DespachoCard({ pedido, dispatch }) {
             </div>
             <button
               onClick={marcarEntregado}
-              className="px-5 py-2 rounded-full bg-green-500/90 text-cream text-[13px] font-semibold hover:bg-green-500 transition-colors"
+              disabled={enviando}
+              className="px-5 py-2 rounded-full bg-green-500/90 text-cream text-[13px] font-semibold hover:bg-green-500 transition-colors disabled:opacity-50"
             >
-              Marcar como entregado
+              {enviando ? 'Procesando…' : 'Marcar como entregado'}
             </button>
           </div>
         </div>
@@ -215,6 +231,12 @@ function DespachoCard({ pedido, dispatch }) {
         <div className="mt-5 pt-4 border-t border-amber/15 text-[13px] text-cream/85">
           <p>✓ Entregado vía {pedido.courier} · Guía {pedido.guiaRemision}</p>
         </div>
+      )}
+
+      {err && (
+        <p className="mt-4 text-[12px] text-red-300 bg-red-400/10 px-3 py-2 rounded">
+          {err}
+        </p>
       )}
     </Card>
   );
