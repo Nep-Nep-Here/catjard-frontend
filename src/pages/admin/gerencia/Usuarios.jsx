@@ -13,11 +13,19 @@ import { selectUser } from '../../../redux/slices/authSlice.js';
 import { ROLE_LABELS, ROLES } from '../../../data/users.js';
 import AdminHeader, { Card, EmptyState } from '../../../components/AdminHeader.jsx';
 
+// Roles para el formulario de alta (solo personal interno; los clientes
+// se autorregistran, no se crean desde aquí).
 const ROLES_INTERNOS = [
   { id: ROLES.VENDEDOR,   label: ROLE_LABELS.vendedor },
   { id: ROLES.ALMACEN,    label: ROLE_LABELS.almacen },
   { id: ROLES.PRODUCCION, label: ROLE_LABELS.produccion },
   { id: ROLES.GERENTE,    label: ROLE_LABELS.gerente },
+];
+
+// Roles para los filtros de la tabla: incluye Cliente (se listan todos).
+const ROLES_FILTRO = [
+  { id: ROLES.CLIENTE, label: ROLE_LABELS.cliente },
+  ...ROLES_INTERNOS,
 ];
 
 const EMPTY = {
@@ -45,10 +53,8 @@ export default function Usuarios() {
   const [err, setErr] = useState(null);
   const [confirmando, setConfirmando] = useState(null);
 
-  const internos = useMemo(
-    () => usuarios.filter((u) => u.role !== 'cliente'),
-    [usuarios],
-  );
+  // Se listan TODOS los usuarios (internos y clientes registrados).
+  const internos = useMemo(() => usuarios, [usuarios]);
 
   const filtrados = useMemo(
     () => (filtro ? internos.filter((u) => u.role === filtro) : internos),
@@ -106,7 +112,7 @@ export default function Usuarios() {
       <AdminHeader
         eyebrow="Dirección"
         title="Usuarios del sistema"
-        subtitle={`${filtrados.length} de ${internos.length} usuarios internos`}
+        subtitle={`${filtrados.length} de ${internos.length} usuarios`}
         action={
           editando == null && (
             <button
@@ -213,7 +219,7 @@ export default function Usuarios() {
             >
               Todos
             </button>
-            {ROLES_INTERNOS.map((r) => (
+            {ROLES_FILTRO.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setFiltro(r.id)}

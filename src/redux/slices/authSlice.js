@@ -1,11 +1,28 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { decodeJwt } from '../../services/apiClient.js';
 
 const STORAGE_KEY = 'catjard_auth';
+const TOKEN_KEY = 'catjard_token';
 
+// Al arrancar la app: si no hay token o el JWT expiró, se limpia la sesión
+// persistida (evita entrar "ya logueado" con una sesión vieja/vencida).
 const loadInitial = () => {
   try {
+    const token = localStorage.getItem(TOKEN_KEY);
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!token || !raw) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    const claims = decodeJwt(token);
+    const vigente = claims?.exp && claims.exp * 1000 > Date.now();
+    if (!vigente) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -50,7 +67,7 @@ export const selectUser = (state) => state.auth.user;
 export const selectRole = (state) => state.auth.user?.role ?? null;
 export const selectIsAuthenticated = (state) => !!state.auth.user;
 export const selectAuthError = (state) => state.auth.error;
-// clienteId del CRM asociado al usuario; cae al user.id como fallback para no romper usuarios antiguos
-// que se registraron antes de la conversión lead→cliente.
-export const selectClienteId = (state) =>
-  state.auth.user?.clienteId ?? state.auth.user?.id ?? null;
+// clienteId del CRM asociado al usuario. NO usar user.id como fallback: son ids de
+// bases distintas (identity vs crm) y mapearían a OTRA empresa (fuga de datos B2B).
+// Si es null, el portal de cliente se muestra vacío (usuario sin ClienteCRM enlazado).
+export const selectClienteId = (state) => state.auth.user?.clienteId ?? null;
