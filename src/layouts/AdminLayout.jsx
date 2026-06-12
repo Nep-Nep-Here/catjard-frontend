@@ -39,6 +39,8 @@ const GERENCIA_ITEMS = [
   { to: '/admin/gerencia/reportes',       label: 'Reportes' },
   { to: '/admin/gerencia/aprobaciones',   label: 'Aprobaciones', badge: 'aprobaciones' },
   { to: '/admin/gerencia/usuarios',       label: 'Usuarios del sistema' },
+  { to: '/admin/gerencia/solicitudes',    label: 'Solicitudes (ayuda)' },
+  { to: '/admin/gerencia/cambios',        label: 'Control de cambios' },
   { to: '/admin/gerencia/configuracion',  label: 'Configuración' },
   { to: '/admin/gerencia/auditoria',      label: 'Auditoría' },
 ];
@@ -140,6 +142,23 @@ export default function AdminLayout() {
               </div>
             </div>
           ))}
+          {user?.role !== 'gerente' && (
+            <div>
+              <p className="text-[10px] tracking-[0.25em] uppercase text-amber/70 px-3 mb-2">Soporte</p>
+              <div className="space-y-1">
+                <NavLink
+                  to="/admin/ayuda"
+                  className={({ isActive }) =>
+                    `flex items-center justify-between px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                      isActive ? 'bg-amber/15 text-amber' : 'text-cream/80 hover:bg-amber/5 hover:text-amber-light'
+                    }`
+                  }
+                >
+                  <span>Ayuda</span>
+                </NavLink>
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="border-t border-amber/15 pt-4 mt-6">

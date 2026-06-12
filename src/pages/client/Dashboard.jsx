@@ -1,6 +1,7 @@
+
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectUser, selectClienteId } from '../../redux/slices/authSlice.js';
+import { selectUser } from '../../redux/slices/authSlice.js';
 import { selectCotizacionesByCliente } from '../../redux/slices/cotizacionesSlice.js';
 import { selectPedidosByCliente } from '../../redux/slices/pedidosSlice.js';
 import {
@@ -14,9 +15,8 @@ import {
 
 export default function ClienteDashboard() {
   const user = useSelector(selectUser);
-  const clienteId = useSelector(selectClienteId);
-  const cotizaciones = useSelector(selectCotizacionesByCliente(clienteId));
-  const pedidos = useSelector(selectPedidosByCliente(clienteId));
+  const cotizaciones = useSelector(selectCotizacionesByCliente(user?.id));
+  const pedidos = useSelector(selectPedidosByCliente(user?.id));
 
   const cotizacionesActivas = cotizaciones.filter((c) =>
     ['enviada', 'en_revision', 'propuesta'].includes(c.estado),

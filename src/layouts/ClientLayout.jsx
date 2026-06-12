@@ -12,6 +12,7 @@ const MENU = [
   { to: '/cliente/cotizar',        label: 'Carrito de cotización', showCount: true },
   { to: '/cliente/cotizaciones',   label: 'Mis cotizaciones' },
   { to: '/cliente/pedidos',        label: 'Mis pedidos' },
+  { to: '/cliente/ayuda',          label: 'Ayuda' },
   { to: '/cliente/perfil',         label: 'Mi perfil' },
 ];
 

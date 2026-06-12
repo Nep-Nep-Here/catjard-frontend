@@ -1,3 +1,5 @@
+
+
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,6 +13,7 @@ const NAV_ITEMS = [
   { label: 'Servicios', to: '/servicios' },
   { label: 'Casos', to: '/portafolio' },
   { label: 'Contacto', to: '/contacto' },
+  { label: 'Ayuda', to: '/ayuda' },
 ];
 
 export function Navbar() {

@@ -23,6 +23,8 @@ import ClienteCotizacionDetalle from '../pages/client/CotizacionDetalle.jsx';
 import ClientePedidos from '../pages/client/Pedidos.jsx';
 import ClientePedidoDetalle from '../pages/client/PedidoDetalle.jsx';
 import Perfil from '../pages/client/Perfil.jsx';
+import Ayuda from '../pages/client/Ayuda.jsx';
+import AyudaRedirect from '../pages/public/AyudaRedirect.jsx';
 
 import VentasDashboard from '../pages/admin/ventas/Dashboard.jsx';
 import Leads from '../pages/admin/ventas/Leads.jsx';
@@ -52,6 +54,8 @@ import Aprobaciones from '../pages/admin/gerencia/Aprobaciones.jsx';
 import Usuarios from '../pages/admin/gerencia/Usuarios.jsx';
 import Configuracion from '../pages/admin/gerencia/Configuracion.jsx';
 import Auditoria from '../pages/admin/gerencia/Auditoria.jsx';
+import Solicitudes from '../pages/admin/gerencia/Solicitudes.jsx';
+import ControlCambios from '../pages/admin/gerencia/ControlCambios.jsx';
 
 import NotFound from '../pages/NotFound.jsx';
 
@@ -67,6 +71,7 @@ export default function AppRouter() {
           <Route path="/portafolio" element={<Portafolio />} />
           <Route path="/nosotros" element={<Nosotros />} />
           <Route path="/contacto" element={<Contacto />} />
+          <Route path="/ayuda" element={<AyudaRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
           <Route path="/recuperar" element={<RecuperarPassword />} />
@@ -81,6 +86,7 @@ export default function AppRouter() {
             <Route path="/cliente/pedidos" element={<ClientePedidos />} />
             <Route path="/cliente/pedidos/:id" element={<ClientePedidoDetalle />} />
             <Route path="/cliente/perfil" element={<Perfil />} />
+            <Route path="/cliente/ayuda" element={<Ayuda />} />
           </Route>
         </Route>
 
@@ -126,8 +132,16 @@ export default function AppRouter() {
             <Route path="/admin/gerencia/reportes" element={<Reportes />} />
             <Route path="/admin/gerencia/aprobaciones" element={<Aprobaciones />} />
             <Route path="/admin/gerencia/usuarios" element={<Usuarios />} />
+            <Route path="/admin/gerencia/solicitudes" element={<Solicitudes />} />
+            <Route path="/admin/gerencia/cambios" element={<ControlCambios />} />
             <Route path="/admin/gerencia/configuracion" element={<Configuracion />} />
             <Route path="/admin/gerencia/auditoria" element={<Auditoria />} />
+          </Route>
+        </Route>
+
+        <Route element={<ProtectedRoute roles={['vendedor', 'almacen', 'produccion']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/ayuda" element={<Ayuda />} />
           </Route>
         </Route>
 
