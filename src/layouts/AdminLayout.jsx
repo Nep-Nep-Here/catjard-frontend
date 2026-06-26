@@ -41,6 +41,7 @@ const GERENCIA_ITEMS = [
   { to: '/admin/gerencia/usuarios',       label: 'Usuarios del sistema' },
   { to: '/admin/gerencia/solicitudes',    label: 'Solicitudes (ayuda)' },
   { to: '/admin/gerencia/cambios',        label: 'Control de cambios' },
+  { to: '/admin/gerencia/incidentes',     label: 'Gestión de incidentes' },
   { to: '/admin/gerencia/configuracion',  label: 'Configuración' },
   { to: '/admin/gerencia/auditoria',      label: 'Auditoría' },
 ];

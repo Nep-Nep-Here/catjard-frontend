@@ -56,6 +56,7 @@ import Configuracion from '../pages/admin/gerencia/Configuracion.jsx';
 import Auditoria from '../pages/admin/gerencia/Auditoria.jsx';
 import Solicitudes from '../pages/admin/gerencia/Solicitudes.jsx';
 import ControlCambios from '../pages/admin/gerencia/ControlCambios.jsx';
+import GestionIncidentes from '../pages/admin/gerencia/GestionIncidentes.jsx';
 
 import NotFound from '../pages/NotFound.jsx';
 
@@ -134,6 +135,7 @@ export default function AppRouter() {
             <Route path="/admin/gerencia/usuarios" element={<Usuarios />} />
             <Route path="/admin/gerencia/solicitudes" element={<Solicitudes />} />
             <Route path="/admin/gerencia/cambios" element={<ControlCambios />} />
+            <Route path="/admin/gerencia/incidentes" element={<GestionIncidentes />} />
             <Route path="/admin/gerencia/configuracion" element={<Configuracion />} />
             <Route path="/admin/gerencia/auditoria" element={<Auditoria />} />
           </Route>
