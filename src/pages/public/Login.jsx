@@ -7,7 +7,7 @@ import {
   selectUser,
 } from '../../redux/slices/authSlice.js';
 import { login, HOME_BY_ROLE } from '../../services/authService.js';
-import { ROLE_LABELS } from '../../data/users.js';
+import { ROLE_LABELS, USERS } from '../../data/users.js';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -98,18 +98,35 @@ export default function Login() {
           </p>
         </form>
 
-        <details className="mt-10 text-amber-light/70 text-[13px] border border-amber/15 rounded-lg p-4">
-          <summary className="cursor-pointer hover:text-amber-light font-semibold">
-            Cuentas demo (mock)
-          </summary>
-          <div className="mt-4 space-y-2 font-mono text-[12px]">
-            <p><b>cliente@empresa.com</b> / cliente123 — {ROLE_LABELS.cliente}</p>
-            <p><b>vendedor@catjard.pe</b> / vendedor123 — {ROLE_LABELS.vendedor}</p>
-            <p><b>almacen@catjard.pe</b> / almacen123 — {ROLE_LABELS.almacen}</p>
-            <p><b>produccion@catjard.pe</b> / produccion123 — {ROLE_LABELS.produccion}</p>
-            <p><b>gerente@catjard.pe</b> / gerente123 — {ROLE_LABELS.gerente}</p>
+        {/* Cuentas demo: un clic autocompleta correo y contraseña */}
+        <div className="mt-10">
+          <p className="text-[11px] tracking-[0.25em] uppercase text-amber/70">
+            Cuentas demo · clic para autocompletar
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {USERS.map((u) => {
+              const activa = email === u.email && password === u.password;
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => { setEmail(u.email); setPassword(u.password); setErr(null); }}
+                  className={`text-left px-3.5 py-2.5 rounded-lg border transition-colors ${
+                    activa
+                      ? 'border-amber bg-amber/15'
+                      : 'border-amber/15 bg-amber/[0.03] hover:border-amber/50 hover:bg-amber/10'
+                  }`}
+                >
+                  <p className={`text-[13px] font-semibold ${activa ? 'text-amber' : 'text-cream/90'}`}>
+                    {ROLE_LABELS[u.role] ?? u.role}
+                  </p>
+                  <p className="text-[11px] text-cream/55 mt-0.5">{u.nombre}</p>
+                  <p className="text-[10px] font-mono text-amber-light/50 mt-1 truncate">{u.email}</p>
+                </button>
+              );
+            })}
           </div>
-        </details>
+        </div>
       </div>
     </section>
   );
