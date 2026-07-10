@@ -192,7 +192,7 @@ export default function MonitoreoEventos() {
       <AdminHeader
         eyebrow="Dirección · Monitoreo Estratégico"
         title="Monitoreo de Eventos"
-        subtitle={`Droplet DigitalOcean · ${eventos.length} eventos registrados · se actualiza cada 30 s`}
+        subtitle={`Droplet DigitalOcean · ${eventos.length} eventos registrados · el panel consulta cada 30 s (las métricas de DigitalOcean pueden tardar 1–2 min en reflejarse)`}
         action={
           <div className="flex gap-2">
             <button onClick={sincronizar} disabled={sincronizando}
