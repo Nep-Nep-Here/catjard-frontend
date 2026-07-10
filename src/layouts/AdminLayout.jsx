@@ -43,6 +43,7 @@ const GERENCIA_ITEMS = [
   { to: '/admin/gerencia/cambios',        label: 'Control de cambios' },
   { to: '/admin/gerencia/incidentes',     label: 'Gestión de incidentes' },
   { to: '/admin/gerencia/eventos',        label: 'Monitoreo de eventos' },
+  { to: '/admin/gerencia/continuidad',    label: 'Continuidad y DRP' },
   { to: '/admin/gerencia/configuracion',  label: 'Configuración' },
   { to: '/admin/gerencia/auditoria',      label: 'Auditoría' },
 ];

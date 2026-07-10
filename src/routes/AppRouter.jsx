@@ -58,6 +58,7 @@ import Solicitudes from '../pages/admin/gerencia/Solicitudes.jsx';
 import ControlCambios from '../pages/admin/gerencia/ControlCambios.jsx';
 import GestionIncidentes from '../pages/admin/gerencia/GestionIncidentes.jsx';
 import MonitoreoEventos from '../pages/admin/gerencia/MonitoreoEventos.jsx';
+import ContinuidadServicio from '../pages/admin/gerencia/ContinuidadServicio.jsx';
 
 import NotFound from '../pages/NotFound.jsx';
 
@@ -138,6 +139,7 @@ export default function AppRouter() {
             <Route path="/admin/gerencia/cambios" element={<ControlCambios />} />
             <Route path="/admin/gerencia/incidentes" element={<GestionIncidentes />} />
             <Route path="/admin/gerencia/eventos" element={<MonitoreoEventos />} />
+            <Route path="/admin/gerencia/continuidad" element={<ContinuidadServicio />} />
             <Route path="/admin/gerencia/configuracion" element={<Configuracion />} />
             <Route path="/admin/gerencia/auditoria" element={<Auditoria />} />
           </Route>

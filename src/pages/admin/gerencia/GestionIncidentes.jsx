@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   listarIncidentes,
   crearIncidente,
@@ -6,6 +7,7 @@ import {
   eliminarIncidente,
   sincronizarIncidentes,
 } from '../../../services/incidentesService.js';
+import { listarServicios, sugerenciasKB } from '../../../services/continuidadService.js';
 import AdminHeader, { Card, EmptyState } from '../../../components/AdminHeader.jsx';
 
 // ---------- catalogos ----------
@@ -125,7 +127,7 @@ function calcularPrioridad(impacto, urgencia) {
 }
 
 const EMPTY = {
-  titulo: '', descripcion: '', origen: 'usuario', servicioAfectado: '',
+  titulo: '', descripcion: '', origen: 'usuario', servicioAfectado: '', servicioId: '',
   categoria: 'aplicaciones', impacto: 'medio', urgencia: 'medio',
   responsable: '', diagnostico: '', solucion: '', evidencia: '',
 };
@@ -134,6 +136,7 @@ const ABIERTOS = ['registrado', 'en_diagnostico', 'en_resolucion', 'reabierto'];
 
 export default function GestionIncidentes() {
   const [incidentes, setIncidentes] = useState([]);
+  const [servicios, setServicios] = useState([]);   // catálogo de continuidad (contador RTO)
   const [status, setStatus] = useState('idle');
   const [loadError, setLoadError] = useState(null);
   const [vista, setVista] = useState('lista');   // lista | crear | detalle
@@ -150,7 +153,20 @@ export default function GestionIncidentes() {
     try { setIncidentes(await listarIncidentes()); setStatus('ready'); }
     catch (e) { setLoadError(e.message); setStatus('error'); }
   };
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    cargar();
+    // Catálogo de continuidad (best-effort): habilita el contador RTO.
+    listarServicios().then(setServicios).catch(() => {});
+  }, []);
+
+  // Tick de 1 s para el contador RTO en vivo (solo si hay algún contador corriendo).
+  const [ahora, setAhora] = useState(() => Date.now());
+  const hayContadores = incidentes.some((i) => i.rtoDeadline && i.cumplioRto == null);
+  useEffect(() => {
+    if (!hayContadores) return undefined;
+    const t = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [hayContadores]);
 
   const sincronizar = async () => {
     setSincronizando(true);
@@ -197,7 +213,10 @@ export default function GestionIncidentes() {
     setErr(null); setOk(null);
     if (!form.titulo.trim()) return setErr('Indica el incidente (título).');
     try {
-      const creado = await crearIncidente(form);
+      const creado = await crearIncidente({
+        ...form,
+        servicioId: form.servicioId ? Number(form.servicioId) : null,
+      });
       setOk(creado);
       setForm(EMPTY);
       await cargar();
@@ -239,6 +258,20 @@ export default function GestionIncidentes() {
             <Field label="Servicio / activo afectado">
               <ActivoSelect value={form.servicioAfectado} onChange={(v) => setForm((f) => ({ ...f, servicioAfectado: v }))} />
             </Field>
+
+            {/* Continuidad: asociar el incidente al catálogo activa su contador RTO */}
+            {servicios.length > 0 && (
+              <Field label="Servicio del catálogo de continuidad (activa contador RTO)" className="sm:col-span-2">
+                <select name="servicioId" value={form.servicioId} onChange={onChange} className={inputCls}>
+                  <option value="">— Sin contador RTO —</option>
+                  {servicios.filter((s) => s.activo).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}{s.rtoMinutos ? ` · RTO ${formatMinutos(s.rtoMinutos)}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             <Field label="Clasificación (categoría)" required className="sm:col-span-2">
               <select name="categoria" value={form.categoria} onChange={onChange} className={inputCls}>
@@ -289,6 +322,7 @@ export default function GestionIncidentes() {
     return (
       <DetalleIncidente
         sel={sel}
+        servicios={servicios}
         onVolver={() => { setVista('lista'); setSel(null); }}
         onActualizado={async (actualizado) => { setSel(actualizado); await cargar(); }}
       />
@@ -374,6 +408,7 @@ export default function GestionIncidentes() {
                 <th className="px-5 py-4">Categoría</th>
                 <th className="px-5 py-4">Prioridad</th>
                 <th className="px-5 py-4">Estado</th>
+                <th className="px-5 py-4">RTO</th>
                 <th className="px-5 py-4">Jira</th>
                 <th className="px-5 py-4"></th>
               </tr>
@@ -390,6 +425,7 @@ export default function GestionIncidentes() {
                   <td className="px-5 py-3">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border ${ESTADO_BADGE[i.estado] ?? ''}`}>{ESTADO_LABELS[i.estado] ?? i.estado}</span>
                   </td>
+                  <td className="px-5 py-3 whitespace-nowrap"><RtoBadge i={i} ahora={ahora} /></td>
                   <td className="px-5 py-3">
                     {i.jiraIssueKey ? (
                       <a href={i.jiraUrl} target="_blank" rel="noopener noreferrer" className="text-amber-light underline underline-offset-4 text-[12px]">{i.jiraIssueKey}</a>
@@ -417,15 +453,33 @@ export default function GestionIncidentes() {
 }
 
 // ---------------- VISTA DETALLE (con panel de gestión editable) ----------------
-function DetalleIncidente({ sel, onVolver, onActualizado }) {
+function DetalleIncidente({ sel, servicios = [], onVolver, onActualizado }) {
+  const navigate = useNavigate();
+  // Estrategias documentadas de la Base de Conocimiento que aplican a este
+  // incidente (por categoría y servicio); el enlace redirige a Continuidad y DRP.
+  const [estrategias, setEstrategias] = useState([]);
+  useEffect(() => {
+    sugerenciasKB({ categoriaIncidente: sel.categoria, servicioId: sel.servicioId })
+      .then(setEstrategias)
+      .catch(() => setEstrategias([]));
+  }, [sel.id, sel.categoria, sel.servicioId]);
   const [gest, setGest] = useState({
     estado: sel.estado, impacto: sel.impacto, urgencia: sel.urgencia,
     responsable: sel.responsable ?? '', servicioAfectado: sel.servicioAfectado ?? '',
+    servicioId: sel.servicioId ?? '',
     diagnostico: sel.diagnostico ?? '', solucion: sel.solucion ?? '', evidencia: sel.evidencia ?? '',
   });
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState(null);
   const [ok, setOk] = useState(false);
+
+  // Tick de 1 s para el contador RTO del encabezado.
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!sel.rtoDeadline) return undefined;
+    const t = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [sel.rtoDeadline]);
 
   const onChange = (e) => { setGest((g) => ({ ...g, [e.target.name]: e.target.value })); setOk(false); };
   const prioridadPreview = calcularPrioridad(gest.impacto, gest.urgencia);
@@ -433,7 +487,12 @@ function DetalleIncidente({ sel, onVolver, onActualizado }) {
   const guardar = async () => {
     setGuardando(true); setErr(null); setOk(false);
     try {
-      const actualizado = await actualizarIncidente(sel.id, gest);
+      const actualizado = await actualizarIncidente(sel.id, {
+        ...gest,
+        // null = no tocar la asociación; el backend solo la cambia si llega un id.
+        servicioId: gest.servicioId && Number(gest.servicioId) !== sel.servicioId
+          ? Number(gest.servicioId) : null,
+      });
       setOk(true);
       await onActualizado(actualizado);
     } catch (e) { setErr(e.message || 'No se pudo guardar.'); }
@@ -455,6 +514,31 @@ function DetalleIncidente({ sel, onVolver, onActualizado }) {
           failed={sel.estado === 'cancelado'} failLabel="Cancelado"
           reopened={sel.estado === 'reabierto'} reopenLabel="Reabierto" />
       </div>
+
+      {/* Contador RTO (Gestión de Continuidad): tiempo objetivo de recuperación del servicio */}
+      {sel.rtoDeadline && <PanelRto sel={sel} ahora={ahora} />}
+
+      {/* Estrategias documentadas (Base de Conocimiento) que aplican a este incidente */}
+      {estrategias.length > 0 && (
+        <div className="mt-6 rounded-xl border border-amber/25 bg-amber/[0.04] px-5 py-4">
+          <p className="text-[10px] tracking-[0.25em] uppercase text-amber/70">Estrategia documentada · Base de Conocimiento</p>
+          <div className="mt-3 grid gap-2">
+            {estrategias.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center gap-3">
+                <span className="font-mono text-[11px] text-cream/50 shrink-0">{a.codigo}</span>
+                <span className="text-[13px] text-cream flex-1 min-w-[200px]">{a.titulo}</span>
+                <button onClick={() => navigate(`/admin/gerencia/continuidad?kb=${a.id}`)}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-[12px] border border-amber/30 text-amber-light hover:border-amber/60 hover:text-amber transition-colors">
+                  Ver estrategia →
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-cream/50">
+            La referencia de la estrategia se incluye automáticamente al enviar el incidente a Jira.
+          </p>
+        </div>
+      )}
 
       <div className="mt-8 grid lg:grid-cols-2 gap-6">
         <Card title="Detalle del incidente">
@@ -520,6 +604,18 @@ function DetalleIncidente({ sel, onVolver, onActualizado }) {
             <Field label="Servicio afectado">
               <ActivoSelect value={gest.servicioAfectado} onChange={(v) => { setGest((g) => ({ ...g, servicioAfectado: v })); setOk(false); }} />
             </Field>
+            {servicios.length > 0 && (
+              <Field label="Servicio del catálogo de continuidad (contador RTO)">
+                <select name="servicioId" value={gest.servicioId} onChange={onChange} className={inputCls}>
+                  <option value="">{sel.servicioId ? sel.servicioNombre : '— Sin contador RTO —'}</option>
+                  {servicios.filter((s) => s.activo && s.id !== sel.servicioId).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}{s.rtoMinutos ? ` · RTO ${formatMinutos(s.rtoMinutos)}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <Field label="Diagnóstico (causa raíz)">
               <textarea name="diagnostico" value={gest.diagnostico} onChange={onChange} rows={2} className={`${inputCls} resize-y`} />
             </Field>
@@ -620,6 +716,107 @@ function StatCard({ label, value, tone }) {
     <div className={`rounded-xl border bg-amber/[0.03] px-4 py-4 ${TONES[tone] ?? TONES.neutral}`}>
       <p className="text-[26px] font-black leading-none">{value}</p>
       <p className="text-[11px] text-cream/60 mt-1">{label}</p>
+    </div>
+  );
+}
+
+// ---------------- contador RTO (Gestión de Continuidad) ----------------
+
+// "90" → "1 h 30 min" (RTO objetivo legible).
+function formatMinutos(min) {
+  if (min == null) return '—';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+// Milisegundos restantes → "1:23:45" (para el countdown en vivo).
+function formatCountdown(ms) {
+  const total = Math.floor(Math.abs(ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss.padStart(2, '0')}`;
+}
+
+// Estado del contador de un incidente: medido (cumplió / no), corriendo o vencido.
+function estadoRto(i, ahora) {
+  if (!i.rtoDeadline) return null;
+  if (i.cumplioRto != null) return { tipo: i.cumplioRto ? 'cumplido' : 'incumplido' };
+  const restante = new Date(i.rtoDeadline).getTime() - ahora;
+  if (restante <= 0) return { tipo: 'vencido', ms: restante };
+  const total = (i.rtoMinutos ?? 0) * 60_000;
+  const porAgotarse = total > 0 && restante <= total * 0.25;
+  return { tipo: porAgotarse ? 'por_vencer' : 'en_tiempo', ms: restante };
+}
+
+// Badge compacto para la columna RTO de la lista.
+function RtoBadge({ i, ahora }) {
+  const st = estadoRto(i, ahora);
+  if (!st) return <span className="text-cream/30">—</span>;
+  switch (st.tipo) {
+    case 'cumplido':
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-green-400/10 text-green-300 border-green-400/30">✓ Cumplió RTO</span>;
+    case 'incumplido':
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-red-400/10 text-red-300 border-red-400/30">✗ RTO incumplido</span>;
+    case 'vencido':
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-red-400/10 text-red-300 border-red-400/30 font-mono">Vencido +{formatCountdown(st.ms)}</span>;
+    case 'por_vencer':
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-orange-400/10 text-orange-300 border-orange-400/30 font-mono">⏱ {formatCountdown(st.ms)}</span>;
+    default:
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-green-400/10 text-green-300 border-green-400/30 font-mono">⏱ {formatCountdown(st.ms)}</span>;
+  }
+}
+
+// Panel grande del detalle: countdown + barra de tiempo consumido.
+function PanelRto({ sel, ahora }) {
+  const st = estadoRto(sel, ahora);
+  if (!st) return null;
+  const total = (sel.rtoMinutos ?? 0) * 60_000;
+  const consumidoPct = st.ms != null && total > 0
+    ? Math.min(100, Math.max(0, ((total - st.ms) / total) * 100))
+    : 100;
+  const tono = {
+    cumplido:   { borde: 'border-green-400/25 bg-green-400/[0.04]', texto: 'text-green-300', barra: 'bg-green-400' },
+    en_tiempo:  { borde: 'border-green-400/25 bg-green-400/[0.04]', texto: 'text-green-300', barra: 'bg-green-400' },
+    por_vencer: { borde: 'border-orange-400/25 bg-orange-400/[0.04]', texto: 'text-orange-300', barra: 'bg-orange-400' },
+    vencido:    { borde: 'border-red-400/25 bg-red-400/[0.04]', texto: 'text-red-300', barra: 'bg-red-400' },
+    incumplido: { borde: 'border-red-400/25 bg-red-400/[0.04]', texto: 'text-red-300', barra: 'bg-red-400' },
+  }[st.tipo];
+  const titulo = {
+    cumplido: 'Servicio recuperado dentro del RTO',
+    incumplido: 'Servicio recuperado fuera del RTO',
+    vencido: 'RTO vencido — el servicio sigue sin recuperarse',
+    por_vencer: 'Tiempo de recuperación por agotarse',
+    en_tiempo: 'Tiempo restante para recuperar el servicio',
+  }[st.tipo];
+
+  return (
+    <div className={`mt-6 rounded-xl border px-5 py-4 ${tono.borde}`}>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-[220px]">
+          <p className="text-[10px] tracking-[0.25em] uppercase text-amber/70">Continuidad del servicio · {sel.servicioNombre ?? 'servicio'}</p>
+          <p className={`mt-1 text-[13px] ${tono.texto}`}>{titulo}</p>
+          <p className="mt-0.5 text-[11px] text-cream/50">
+            RTO objetivo: {formatMinutos(sel.rtoMinutos)} · límite {new Date(sel.rtoDeadline).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' })}
+          </p>
+        </div>
+        {(st.tipo === 'en_tiempo' || st.tipo === 'por_vencer') && (
+          <p className={`font-mono text-[34px] font-black leading-none ${tono.texto}`}>{formatCountdown(st.ms)}</p>
+        )}
+        {st.tipo === 'vencido' && (
+          <p className={`font-mono text-[34px] font-black leading-none ${tono.texto}`}>+{formatCountdown(st.ms)}</p>
+        )}
+        {(st.tipo === 'cumplido' || st.tipo === 'incumplido') && (
+          <p className={`text-[30px] font-black leading-none ${tono.texto}`}>{st.tipo === 'cumplido' ? '✓' : '✗'}</p>
+        )}
+      </div>
+      {st.ms != null && (
+        <div className="mt-3 h-2 rounded-full bg-amber/5 overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-1000 ${tono.barra}`} style={{ width: `${consumidoPct}%` }} />
+        </div>
+      )}
     </div>
   );
 }
