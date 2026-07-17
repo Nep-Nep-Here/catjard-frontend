@@ -35,6 +35,12 @@ export function simularEvento(payload) {
   return apiClient.post('/eventos/simular', payload);
 }
 
+// Simula un reinicio del servidor (demo): abre el incidente de continuidad sin reiniciar
+// el Droplet. Devuelve el incidente creado.
+export function simularReinicio() {
+  return apiClient.post('/eventos/simular-reinicio');
+}
+
 // Botón "Enviar a Jira": escala el incidente vinculado al tablero GDICJ.
 export function enviarEventoAJira(id) {
   return apiClient.post(`/eventos/${id}/enviar-jira`);

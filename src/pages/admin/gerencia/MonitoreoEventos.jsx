@@ -5,6 +5,7 @@ import {
   alertasDigitalOcean,
   sincronizarEventos,
   simularEvento,
+  simularReinicio,
   enviarEventoAJira,
   actualizarEvento,
   eliminarEvento,
@@ -80,6 +81,7 @@ export default function MonitoreoEventos() {
   const [ok, setOk] = useState(null);
   const [err, setErr] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [simulandoReinicio, setSimulandoReinicio] = useState(false);
   const [confirmando, setConfirmando] = useState(null);
   const [enviandoJira, setEnviandoJira] = useState(null);
   const pollRef = useRef(null);
@@ -114,6 +116,17 @@ export default function MonitoreoEventos() {
     } catch (e) { setErr(e.message || 'No se pudo leer las métricas.'); }
     await cargar(true);
     setSincronizando(false);
+  };
+
+  // Demo: abre el incidente de reinicio sin reiniciar el Droplet. El incidente aparece en
+  // Gestión de Incidentes (con su contador RTO de infraestructura), no en esta lista.
+  const simularReinicioHandler = async () => {
+    setSimulandoReinicio(true); setErr(null); setOk(null);
+    try {
+      const inc = await simularReinicio();
+      setOk({ texto: `Reinicio simulado: incidente ${inc?.codigo ?? ''} abierto en Gestión de Incidentes (Infraestructura, con contador RTO).` });
+    } catch (e) { setErr(e.message || 'No se pudo simular el reinicio.'); }
+    setSimulandoReinicio(false);
   };
 
   const enviarJira = async (id) => {
@@ -198,6 +211,10 @@ export default function MonitoreoEventos() {
             <button onClick={sincronizar} disabled={sincronizando}
               className="rounded-full border border-amber/30 text-cream/80 px-4 py-2 text-[13px] hover:border-amber/60 hover:text-cream transition-colors disabled:opacity-50">
               {sincronizando ? 'Leyendo…' : '↻ Leer métricas ahora'}
+            </button>
+            <button onClick={simularReinicioHandler} disabled={simulandoReinicio}
+              className="rounded-full border border-amber/30 text-cream/80 px-4 py-2 text-[13px] hover:border-amber/60 hover:text-cream transition-colors disabled:opacity-50">
+              {simulandoReinicio ? 'Simulando…' : '⟳ Simular reinicio'}
             </button>
             <button onClick={() => { setVista('simular'); setErr(null); setOk(null); }}
               className="rounded-full bg-amber text-brown font-semibold px-5 py-2.5 text-[13px] hover:bg-amber-light transition-colors">
