@@ -31,3 +31,9 @@ export function eliminarIncidente(id) {
 export function sincronizarIncidentes() {
   return apiClient.post('/incidentes/sync');
 }
+
+// Abre el issue en GDICJ para un incidente que aun no lo tiene (los que vienen del
+// monitoreo, o aquellos cuya creacion de issue fallo al registrarse).
+export function enviarIncidenteAJira(id) {
+  return apiClient.post(`/incidentes/${id}/enviar-jira`);
+}

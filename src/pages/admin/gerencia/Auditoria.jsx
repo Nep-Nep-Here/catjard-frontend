@@ -68,7 +68,7 @@ export default function Auditoria() {
         fecha: p.fechaPedido,
         ref: p.codigo ?? p.id,
         descripcion: `Pedido ${p.empresa} (${ESTADO_PEDIDO_LABEL[p.estado]})`,
-        usuario: '—',
+        usuario: p.procesadoPor ?? '—',
         monto: p.total,
       });
     });

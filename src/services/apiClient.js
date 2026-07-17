@@ -67,10 +67,45 @@ async function request(method, path, { body, auth = true, headers = {} } = {}) {
   return ct.includes('application/json') ? res.json() : res.text();
 }
 
+// Descarga binaria (ej. el ZIP del respaldo). Devuelve { blob, filename }; el
+// nombre sale del header Content-Disposition. Los errores se parsean igual que en
+// request() para mostrar el {message} del backend.
+async function download(path, { auth = true } = {}) {
+  const headers = {};
+  if (auth) {
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { method: 'GET', headers });
+  } catch {
+    throw new Error('No se pudo conectar al servidor. Revisa que el gateway esté arriba.');
+  }
+
+  if (!res.ok) {
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      const data = await res.json();
+      message = data?.message || data?.error || message;
+    } catch {}
+    const error = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const m = /filename="?([^"]+)"?/.exec(cd);
+  return { blob, filename: m ? m[1] : 'descarga' };
+}
+
 export const apiClient = {
   get: (path, opts) => request('GET', path, opts),
   post: (path, body, opts) => request('POST', path, { ...opts, body }),
   put: (path, body, opts) => request('PUT', path, { ...opts, body }),
   patch: (path, body, opts) => request('PATCH', path, { ...opts, body }),
   del: (path, opts) => request('DELETE', path, opts),
+  download: (path, opts) => download(path, opts),
 };

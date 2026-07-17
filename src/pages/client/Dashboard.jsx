@@ -1,7 +1,7 @@
 
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../../redux/slices/authSlice.js';
+import { selectUser, selectClienteId } from '../../redux/slices/authSlice.js';
 import { selectCotizacionesByCliente } from '../../redux/slices/cotizacionesSlice.js';
 import { selectPedidosByCliente } from '../../redux/slices/pedidosSlice.js';
 import {
@@ -15,8 +15,11 @@ import {
 
 export default function ClienteDashboard() {
   const user = useSelector(selectUser);
-  const cotizaciones = useSelector(selectCotizacionesByCliente(user?.id));
-  const pedidos = useSelector(selectPedidosByCliente(user?.id));
+  // Filtrar por el clienteId del CRM, NO por user.id (id de identity): son de bases
+  // distintas y user.id no matchea el clienteId que guardan cotizaciones/pedidos.
+  const clienteId = useSelector(selectClienteId);
+  const cotizaciones = useSelector(selectCotizacionesByCliente(clienteId));
+  const pedidos = useSelector(selectPedidosByCliente(clienteId));
 
   const cotizacionesActivas = cotizaciones.filter((c) =>
     ['enviada', 'en_revision', 'propuesta'].includes(c.estado),

@@ -4,7 +4,7 @@ import {
   resumenContinuidad,
   listarServicios, crearServicio, actualizarServicio, eliminarServicio,
   listarRiesgos, crearRiesgo, actualizarRiesgo, eliminarRiesgo,
-  listarRespaldos, registrarRespaldo, sincronizarRespaldosDO,
+  listarRespaldos, registrarRespaldo, sincronizarRespaldosDO, exportarRespaldoLocal,
   listarArticulosKB, obtenerArticuloKB, crearArticuloKB, actualizarArticuloKB, eliminarArticuloKB,
 } from '../../../services/continuidadService.js';
 import AdminHeader, { Card, EmptyState } from '../../../components/AdminHeader.jsx';
@@ -155,6 +155,7 @@ export default function ContinuidadServicio() {
   const [err, setErr] = useState(null);
   const [confirmando, setConfirmando] = useState(null); // { tipo, id }
   const [sincronizandoDO, setSincronizandoDO] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const cargar = async () => {
@@ -223,6 +224,23 @@ export default function ContinuidadServicio() {
     setSincronizandoDO(false);
   };
 
+  // Descarga la copia local (ZIP con el pg_dump de las 7 BDs): la "1" del 3-2-1.
+  // Al terminar recarga la lista, porque el backend registra el respaldo.
+  const descargarCopiaLocal = async () => {
+    setExportando(true); setErr(null); setOk(null);
+    try {
+      const { blob, filename } = await exportarRespaldoLocal();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setOk({ texto: `Copia local descargada (${filename}) y registrada como respaldo.` });
+      await cargar();
+    } catch (e) { setErr(e.message || 'No se pudo generar la copia local.'); }
+    setExportando(false);
+  };
+
   const abrirForm = (formVista, item = null) => {
     setEditando(item); setVista(formVista); setErr(null); setOk(null);
   };
@@ -260,11 +278,18 @@ export default function ContinuidadServicio() {
   }
 
   // ---------------- VISTA PRINCIPAL ----------------
+  // Copias externas = descargas locales del cluster (destino copia_externa): la "1" del 3-2-1.
+  const copiasExternas = respaldos.filter((r) => r.destino === 'copia_externa').length;
+
   const accionTab = {
     servicios: <BotonPrimario onClick={() => abrirForm('form-servicio')}>+ Agregar servicio</BotonPrimario>,
     riesgos:   <BotonPrimario onClick={() => abrirForm('form-riesgo')}>+ Registrar riesgo</BotonPrimario>,
     respaldos: (
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <button onClick={descargarCopiaLocal} disabled={exportando}
+          className="rounded-full border border-amber/30 text-cream/80 px-4 py-2 text-[13px] hover:border-amber/60 hover:text-cream transition-colors disabled:opacity-50">
+          {exportando ? 'Generando copia…' : '⬇ Descargar copia local (.zip)'}
+        </button>
         <button onClick={sincronizarDO} disabled={sincronizandoDO}
           className="rounded-full border border-amber/30 text-cream/80 px-4 py-2 text-[13px] hover:border-amber/60 hover:text-cream transition-colors disabled:opacity-50">
           {sincronizandoDO ? 'Sincronizando…' : '↻ Sincronizar con DigitalOcean'}
@@ -291,7 +316,7 @@ export default function ContinuidadServicio() {
 
       {/* Resumen del plan: la tabla de "resultados esperados", en vivo */}
       {resumen && (
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard label="Servicios en el catálogo" value={resumen.totalServicios} tone="neutral" />
           <StatCard label="Criticidad alta / crítica" value={resumen.serviciosCriticidadAlta} tone="orange" />
           <StatCard label="Riesgos abiertos" value={resumen.riesgosAbiertos} tone="yellow" />
@@ -300,6 +325,9 @@ export default function ContinuidadServicio() {
             tone={resumen.porcentajeCumplimientoRto == null ? 'neutral' : resumen.porcentajeCumplimientoRto >= 90 ? 'green' : 'red'} />
           <StatCard label="RTO vencido (activos)" value={resumen.incidentesActivosRtoVencido}
             tone={resumen.incidentesActivosRtoVencido > 0 ? 'red' : 'green'} />
+          {/* Copias externas descargadas al equipo (la "1" de la regla 3-2-1). */}
+          <StatCard label="Copias externas" value={copiasExternas}
+            tone={copiasExternas > 0 ? 'green' : 'orange'} />
         </div>
       )}
 
@@ -729,7 +757,7 @@ function TablaRespaldos({ respaldos }) {
                 <td className="px-5 py-3 font-mono text-[12px] text-cream/85">{r.codigo}</td>
                 <td className="px-5 py-3 text-cream/70 text-[12px] whitespace-nowrap">{formatFecha(r.fechaHora)}</td>
                 <td className="px-5 py-3 text-cream">{r.recurso}</td>
-                <td className="px-5 py-3 text-cream/70">{r.servicioNombre ?? '—'}</td>
+                <td className="px-5 py-3 text-cream/70">{r.servicioNombre ?? (r.destino === 'copia_externa' ? 'Todo el cluster' : '—')}</td>
                 <td className="px-5 py-3 text-cream/70">{TIPO_RESPALDO_LABELS[r.tipo] ?? r.tipo}</td>
                 <td className="px-5 py-3 text-cream/70 whitespace-nowrap">{DESTINO_LABELS[r.destino] ?? r.destino}</td>
                 <td className="px-5 py-3 text-cream/70 whitespace-nowrap">{r.tamanoMb != null ? `${r.tamanoMb >= 1024 ? `${(r.tamanoMb / 1024).toFixed(1)} GB` : `${r.tamanoMb} MB`}` : '—'}</td>

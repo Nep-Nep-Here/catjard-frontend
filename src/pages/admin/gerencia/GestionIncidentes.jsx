@@ -6,6 +6,7 @@ import {
   actualizarIncidente,
   eliminarIncidente,
   sincronizarIncidentes,
+  enviarIncidenteAJira,
 } from '../../../services/incidentesService.js';
 import { listarServicios, sugerenciasKB } from '../../../services/continuidadService.js';
 import AdminHeader, { Card, EmptyState } from '../../../components/AdminHeader.jsx';
@@ -484,6 +485,30 @@ function DetalleIncidente({ sel, servicios = [], onVolver, onActualizado }) {
   const onChange = (e) => { setGest((g) => ({ ...g, [e.target.name]: e.target.value })); setOk(false); };
   const prioridadPreview = calcularPrioridad(gest.impacto, gest.urgencia);
 
+  // Acciones rápidas de cierre: mueven el estado sin tener que bucear en el panel
+  // de gestión. Son las que detienen el contador RTO.
+  const [accion, setAccion] = useState(null);   // acción en curso (deshabilita la barra)
+  const [errAccion, setErrAccion] = useState(null);
+
+  const cambiarEstadoRapido = async (estado, confirmacion) => {
+    if (confirmacion && !window.confirm(confirmacion)) return;
+    setAccion(estado); setErrAccion(null); setOk(false);
+    try {
+      const actualizado = await actualizarIncidente(sel.id, { estado });
+      setGest((g) => ({ ...g, estado }));
+      await onActualizado(actualizado);
+    } catch (e) { setErrAccion(e.message || 'No se pudo actualizar el estado.'); }
+    setAccion(null);
+  };
+
+  const mandarAJira = async () => {
+    setAccion('jira'); setErrAccion(null); setOk(false);
+    try {
+      await onActualizado(await enviarIncidenteAJira(sel.id));
+    } catch (e) { setErrAccion(e.message || 'No se pudo enviar a Jira.'); }
+    setAccion(null);
+  };
+
   const guardar = async () => {
     setGuardando(true); setErr(null); setOk(false);
     try {
@@ -517,6 +542,43 @@ function DetalleIncidente({ sel, servicios = [], onVolver, onActualizado }) {
 
       {/* Contador RTO (Gestión de Continuidad): tiempo objetivo de recuperación del servicio */}
       {sel.rtoDeadline && <PanelRto sel={sel} ahora={ahora} />}
+
+      {/* Cierre del flujo: lo que detiene el contador RTO, más el escalamiento a GDICJ */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {ABIERTOS.includes(sel.estado) && (
+          <button onClick={() => cambiarEstadoRapido('resuelto')} disabled={accion != null}
+            className="px-4 py-2 rounded-full text-[13px] border border-green-400/40 text-green-300 hover:bg-green-400/10 transition-colors disabled:opacity-50">
+            {accion === 'resuelto' ? 'Resolviendo…' : '✓ Marcar resuelto'}
+          </button>
+        )}
+        {sel.estado === 'resuelto' && (
+          <button onClick={() => cambiarEstadoRapido('cerrado')} disabled={accion != null}
+            className="px-4 py-2 rounded-full text-[13px] border border-green-400/40 text-green-300 hover:bg-green-400/10 transition-colors disabled:opacity-50">
+            {accion === 'cerrado' ? 'Cerrando…' : '✓ Cerrar incidente'}
+          </button>
+        )}
+        {!['cerrado', 'cancelado'].includes(sel.estado) && (
+          <button
+            onClick={() => cambiarEstadoRapido('cancelado',
+              '¿Cancelar este incidente? Se descarta como falso positivo y deja de contar para el RTO.')}
+            disabled={accion != null}
+            className="px-4 py-2 rounded-full text-[13px] border border-cream/25 text-cream/70 hover:bg-cream/5 transition-colors disabled:opacity-50">
+            {accion === 'cancelado' ? 'Cancelando…' : '✕ Cancelar (falso positivo)'}
+          </button>
+        )}
+        {sel.jiraIssueKey ? (
+          <a href={sel.jiraUrl} target="_blank" rel="noopener noreferrer"
+            className="px-4 py-2 rounded-full text-[13px] border border-amber/30 text-amber-light hover:border-amber/60 hover:text-amber transition-colors">
+            Ver {sel.jiraIssueKey} en GDICJ ↗
+          </a>
+        ) : (
+          <button onClick={mandarAJira} disabled={accion != null}
+            className="px-4 py-2 rounded-full text-[13px] border border-amber/30 text-amber-light hover:border-amber/60 hover:text-amber transition-colors disabled:opacity-50">
+            {accion === 'jira' ? 'Enviando…' : 'Enviar a Jira'}
+          </button>
+        )}
+      </div>
+      {errAccion && <div className="mt-3 p-3 rounded bg-red-400/10 text-red-300 text-[13px]">{errAccion}</div>}
 
       {/* Estrategias documentadas (Base de Conocimiento) que aplican a este incidente */}
       {estrategias.length > 0 && (
@@ -743,6 +805,9 @@ function formatCountdown(ms) {
 // Estado del contador de un incidente: medido (cumplió / no), corriendo o vencido.
 function estadoRto(i, ahora) {
   if (!i.rtoDeadline) return null;
+  // Cancelado = falso positivo: no hubo interrupción real que medir, así que el
+  // contador se apaga y el incidente queda fuera de las métricas de continuidad.
+  if (i.estado === 'cancelado') return { tipo: 'cancelado' };
   if (i.cumplioRto != null) return { tipo: i.cumplioRto ? 'cumplido' : 'incumplido' };
   const restante = new Date(i.rtoDeadline).getTime() - ahora;
   if (restante <= 0) return { tipo: 'vencido', ms: restante };
@@ -760,6 +825,8 @@ function RtoBadge({ i, ahora }) {
       return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-green-400/10 text-green-300 border-green-400/30">✓ Cumplió RTO</span>;
     case 'incumplido':
       return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-red-400/10 text-red-300 border-red-400/30">✗ RTO incumplido</span>;
+    case 'cancelado':
+      return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-cream/10 text-cream/50 border-cream/20">N/A · cancelado</span>;
     case 'vencido':
       return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border bg-red-400/10 text-red-300 border-red-400/30 font-mono">Vencido +{formatCountdown(st.ms)}</span>;
     case 'por_vencer':
@@ -783,6 +850,7 @@ function PanelRto({ sel, ahora }) {
     por_vencer: { borde: 'border-orange-400/25 bg-orange-400/[0.04]', texto: 'text-orange-300', barra: 'bg-orange-400' },
     vencido:    { borde: 'border-red-400/25 bg-red-400/[0.04]', texto: 'text-red-300', barra: 'bg-red-400' },
     incumplido: { borde: 'border-red-400/25 bg-red-400/[0.04]', texto: 'text-red-300', barra: 'bg-red-400' },
+    cancelado:  { borde: 'border-cream/15 bg-cream/[0.03]', texto: 'text-cream/55', barra: 'bg-cream/30' },
   }[st.tipo];
   const titulo = {
     cumplido: 'Servicio recuperado dentro del RTO',
@@ -790,6 +858,7 @@ function PanelRto({ sel, ahora }) {
     vencido: 'RTO vencido — el servicio sigue sin recuperarse',
     por_vencer: 'Tiempo de recuperación por agotarse',
     en_tiempo: 'Tiempo restante para recuperar el servicio',
+    cancelado: 'Incidente cancelado — no computa para el RTO',
   }[st.tipo];
 
   return (

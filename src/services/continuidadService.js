@@ -53,6 +53,11 @@ export function registrarRespaldo(payload) {
 export function sincronizarRespaldosDO() {
   return apiClient.post('/continuidad/respaldos/sync-do');
 }
+// Descarga la "1" de la regla 3-2-1: un ZIP con el pg_dump de las 7 BDs al equipo.
+// Devuelve { blob, filename }; queda registrado como respaldo (copia externa).
+export function exportarRespaldoLocal() {
+  return apiClient.download('/continuidad/respaldos/exportar');
+}
 
 // ----- Base de Conocimiento (planes, políticas y runbooks) -----
 
